@@ -21,7 +21,7 @@ app.use(
     max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  })
+  }),
 );
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 app.use(compression({ level: -1 }));
@@ -32,9 +32,9 @@ app.use(express.urlencoded({ extended: true }));
 
 //api endpoints
 app.use("/api/v1/auth", authRoute);
-app.use("/api/v1/chat", chatRoute);
+app.use("/api/v1/chat", verifyJwtToken, chatRoute);
 app.use("/api/v1/users", verifyJwtToken, userRoute);
-app.use("/api/v1/upload", uploadRoute);
+app.use("/api/v1/upload", verifyJwtToken, uploadRoute);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Notebook API");

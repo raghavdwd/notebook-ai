@@ -3,7 +3,7 @@ import { JWT_SECRET } from "../../config/contants.js";
 
 export const verifyJwtToken = (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
-  console.log(token);
+  // console.log(token);
   if (!token) {
     return res.status(401).json({ success: false, error: "No token provided" });
   }

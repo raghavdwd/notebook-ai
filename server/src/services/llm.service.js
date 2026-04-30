@@ -37,3 +37,27 @@ export const getTextResponse = async (userMsg, vectorData) => {
   });
   return response.choices[0].message.content;
 };
+
+export const generateChatTitle = async (userMsg) => {
+  const response = await openai.chat.completions.create({
+    model: "gemini-2.5-flash",
+    messages: [
+      {
+        role: "system",
+        content:
+          "Create a short chat title from the user message. Max 6 words. Return only the title, without quotes or extra punctuation.",
+      },
+      {
+        role: "user",
+        content: userMsg,
+      },
+    ],
+  });
+
+  const title = response.choices[0].message.content
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/[.!?]+$/g, "");
+
+  return title || userMsg.slice(0, 40);
+};

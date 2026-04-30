@@ -48,6 +48,7 @@ export const addVector = async ({
   embedding,
   text,
   userId,
+  fileId,
   metadata = {},
 }) => {
   const vec = normalizeEmbedding(embedding);
@@ -61,7 +62,7 @@ export const addVector = async ({
     const res = await collection.add({
       ids: [id],
       documents: [String(text ?? "")],
-      metadatas: [{ userId, ...flatMetadata }],
+      metadatas: [{ userId, fileId, ...flatMetadata }],
       embeddings: [vec],
     });
     console.log(res);
@@ -72,18 +73,23 @@ export const addVector = async ({
   }
 };
 
-export const searchVector = async (embedding, userId, n_results = 2) => {
+export const searchVector = async (embedding, userId, fileIds, n_results = 4) => {
   if (
     !Array.isArray(embedding) ||
     !embedding.every((x) => typeof x === "number")
   ) {
     throw new Error("Invalid embedding: must be an array of numbers");
   }
+  if (!Array.isArray(fileIds) || fileIds.length === 0) {
+    throw new Error("At least one file ID is required for vector search");
+  }
 
   return await collection.query({
     queryEmbeddings: [embedding],
     n_results,
-    where: { userId: { $eq: userId } }, // ✅ search restricted to that user
+    where: {
+      $and: [{ userId: { $eq: userId } }, { fileId: { $in: fileIds } }],
+    },
   });
 };
 

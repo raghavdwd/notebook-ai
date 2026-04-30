@@ -1,30 +1,29 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
   Brain,
-  User,
-  Upload,
-  File,
-  Send,
-  MessageSquare,
+  Check,
   Clock,
-  Search,
-  Settings,
-  LogOut,
-  Plus,
-  Trash2,
   Download,
+  File,
+  LogOut,
+  MessageSquare,
+  Plus,
+  Send,
+  Trash2,
+  Upload,
+  User,
+  X,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { useNavigate } from "react-router-dom";
 import { axiosInstance } from "../utils/axiosInstance";
 import { notify } from "../utils/notify";
 import { removeToken } from "../utils/sessionStorage";
 
-// Typing animation component
 const TypingAnimation = () => (
   <div className="flex items-center space-x-1 p-4">
     <Brain className="h-5 w-5 flex-shrink-0" />
@@ -46,143 +45,23 @@ const TypingAnimation = () => (
 export default function Dashboard() {
   const [message, setMessage] = useState("");
   const [files, setFiles] = useState([]);
+  const [sessionFiles, setSessionFiles] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState(null);
   const [userData, setUserData] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [isLoadingChat, setIsLoadingChat] = useState(true);
   const chatEndRef = useRef(null);
-
   const navigate = useNavigate();
 
-  // Auto scroll to bottom
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const activeSession = sessions.find(
+    (session) => session.sessionId === activeSessionId,
+  );
 
-  //checking sessionStorage has token or not then navigate to login
-  useEffect(() => {
-    const token = sessionStorage.getItem("USER_SESS_TOKEN");
-    if (!token) {
-      notify("❌ You need to log in first!", "error");
-      navigate("/login", { replace: true });
-    }
-  }, [navigate]);
-
-  useEffect(() => {
-    //user data
-    axiosInstance.get("/users/me").then((response) => {
-      if (response.data.success) {
-        // Set user data
-        setUserData(response.data.user.email);
-      } else {
-        notify(
-          response.data.message || "❌ Failed to fetch user data!",
-          "error"
-        );
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [chatMessages, isTyping]);
-
-  useEffect(() => {
-    // Fetch files from the server
-    axiosInstance
-      .get("/upload")
-      .then((response) => {
-        if (response.data.success) {
-          setFiles(response.data.files);
-        } else {
-          notify(response.data.message || "❌ Failed to fetch files!", "error");
-        }
-      })
-      .catch((error) => {
-        //console.error("Error fetching files:", error);
-        notify("❌ Failed to fetch files!", "error");
-      });
-  }, []);
-
-  useEffect(() => {
-    // Fetch chat History
-    setIsLoadingChat(true);
-    axiosInstance
-      .get("/users/chatHistory")
-      .then((response) => {
-        if (response.data.success) {
-          // Transform the chat history to match the expected format
-          const transformedMessages = [];
-
-          response.data.chatHistory.forEach((chat) => {
-            // Add user message
-            transformedMessages.push({
-              id: `user-${chat.chatId}`,
-              type: "user",
-              content: chat.userMsg,
-              timestamp: formatTimestamp(chat.createdAt),
-            });
-
-            // Add AI response
-            transformedMessages.push({
-              id: `ai-${chat.chatId}`,
-              type: "ai",
-              content: chat.aiResponse,
-              timestamp: formatTimestamp(chat.createdAt),
-            });
-          });
-
-          // If no chat history exists, show welcome message
-          if (transformedMessages.length === 0) {
-            transformedMessages.push({
-              id: "welcome",
-              type: "ai",
-              content:
-                "Hello! I've analyzed your uploaded documents. What would you like to know about them?",
-              timestamp: getCurrentTimestamp(),
-            });
-          }
-
-          setChatMessages(transformedMessages);
-        } else {
-          // Show welcome message on error or empty response
-          setChatMessages([
-            {
-              id: "welcome",
-              type: "ai",
-              content:
-                "Hello! I've analyzed your uploaded documents. What would you like to know about them?",
-              timestamp: getCurrentTimestamp(),
-            },
-          ]);
-          notify(
-            response.data.message || "❌ Failed to fetch chat history!",
-            "error"
-          );
-        }
-      })
-      .catch((error) => {
-        //console.error("Error fetching chat history:", error);
-        // Show welcome message on error
-        setChatMessages([
-          {
-            id: "welcome",
-            type: "ai",
-            content:
-              "Hello! I've analyzed your uploaded documents. What would you like to know about them?",
-            timestamp: getCurrentTimestamp(),
-          },
-        ]);
-        notify("❌ Failed to fetch chat history!", "error");
-      })
-      .finally(() => {
-        setIsLoadingChat(false);
-      });
-  }, []);
-
-  // Helper function to format timestamp from server
   const formatTimestamp = (dateString) => {
+    if (!dateString) return getCurrentTimestamp();
     const date = new Date(dateString);
     return date.toLocaleTimeString("en-US", {
       hour12: false,
@@ -191,18 +70,202 @@ export default function Dashboard() {
     });
   };
 
-  // Helper function to get current timestamp
-  const getCurrentTimestamp = () => {
-    return new Date().toLocaleTimeString("en-US", {
+  const getCurrentTimestamp = () =>
+    new Date().toLocaleTimeString("en-US", {
       hour12: false,
       hour: "2-digit",
       minute: "2-digit",
     });
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const refreshFiles = () =>
+    axiosInstance.get("/upload").then((response) => {
+      if (response.data.success) {
+        setFiles(response.data.files);
+      }
+    });
+
+  const loadSessionFiles = (sessionId) =>
+    axiosInstance.get(`/chat/sessions/${sessionId}/files`).then((response) => {
+      if (response.data.success) {
+        setSessionFiles(response.data.files);
+      }
+    });
+
+  const loadSessionMessages = (sessionId) => {
+    setIsLoadingChat(true);
+    axiosInstance
+      .get(`/chat/sessions/${sessionId}/messages`)
+      .then((response) => {
+        if (!response.data.success) {
+          throw new Error(response.data.message);
+        }
+
+        const transformedMessages = [];
+        response.data.messages.forEach((chat) => {
+          transformedMessages.push({
+            id: `user-${chat.chatId}`,
+            type: "user",
+            content: chat.userMsg,
+            timestamp: formatTimestamp(chat.createdAt),
+          });
+          transformedMessages.push({
+            id: `ai-${chat.chatId}`,
+            type: "ai",
+            content: chat.aiResponse,
+            timestamp: formatTimestamp(chat.createdAt),
+          });
+        });
+
+        if (transformedMessages.length === 0) {
+          transformedMessages.push({
+            id: "welcome",
+            type: "ai",
+            content:
+              "Create or select a document set for this chat, then ask a question.",
+            timestamp: getCurrentTimestamp(),
+          });
+        }
+
+        setChatMessages(transformedMessages);
+      })
+      .catch(() => {
+        setChatMessages([
+          {
+            id: "welcome",
+            type: "ai",
+            content: "Failed to load this chat. Try selecting it again.",
+            timestamp: getCurrentTimestamp(),
+          },
+        ]);
+        notify("Failed to fetch chat messages!", "error");
+      })
+      .finally(() => {
+        setIsLoadingChat(false);
+      });
+  };
+
+  const refreshSessions = () =>
+    axiosInstance.get("/chat/sessions").then((response) => {
+      if (response.data.success) {
+        setSessions(response.data.sessions);
+        return response.data.sessions;
+      }
+
+      throw new Error(response.data.message);
+    });
+
+  const createSession = () =>
+    axiosInstance.post("/chat/sessions").then((response) => {
+      if (!response.data.success) {
+        throw new Error(response.data.message);
+      }
+
+      setSessions((prev) => [response.data.session, ...prev]);
+      setActiveSessionId(response.data.session.sessionId);
+      return response.data.session;
+    });
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("USER_SESS_TOKEN");
+    if (!token) {
+      notify("You need to log in first!", "error");
+      navigate("/login", { replace: true });
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    axiosInstance.get("/users/me").then((response) => {
+      if (response.data.success) {
+        setUserData(response.data.user.email);
+      } else {
+        notify(response.data.message || "Failed to fetch user data!", "error");
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    Promise.all([refreshFiles(), refreshSessions()])
+      .then(([, fetchedSessions]) => {
+        if (fetchedSessions.length > 0) {
+          setActiveSessionId(fetchedSessions[0].sessionId);
+        } else {
+          return createSession();
+        }
+      })
+      .catch(() => {
+        notify("Failed to initialize dashboard!", "error");
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!activeSessionId) return;
+
+    loadSessionMessages(activeSessionId);
+    loadSessionFiles(activeSessionId).catch(() => {
+      notify("Failed to fetch attached documents!", "error");
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatMessages, isTyping]);
+
+  const isFileAttached = (fileId) =>
+    sessionFiles.some((file) => file.fileId === fileId);
+
+  const handleNewChat = () => {
+    createSession().catch(() => {
+      notify("Failed to create chat session!", "error");
+    });
+  };
+
+  const attachFile = (fileId) => {
+    if (!activeSessionId) return;
+
+    axiosInstance
+      .post(`/chat/sessions/${activeSessionId}/files`, { fileId })
+      .then((response) => {
+        if (!response.data.success) {
+          throw new Error(response.data.message);
+        }
+
+        return loadSessionFiles(activeSessionId);
+      })
+      .catch(() => {
+        notify("Failed to attach document!", "error");
+      });
+  };
+
+  const detachFile = (fileId) => {
+    if (!activeSessionId) return;
+
+    axiosInstance
+      .delete(`/chat/sessions/${activeSessionId}/files/${fileId}`)
+      .then((response) => {
+        if (!response.data.success) {
+          throw new Error(response.data.message);
+        }
+
+        setSessionFiles((prev) => prev.filter((file) => file.fileId !== fileId));
+      })
+      .catch(() => {
+        notify("Failed to detach document!", "error");
+      });
   };
 
   const handleSendMessage = (e) => {
     e.preventDefault();
-    if (!message.trim() || isTyping) return;
+    if (!message.trim() || isTyping || !activeSessionId) return;
+
+    if (sessionFiles.length === 0) {
+      notify("Attach at least one document to this chat first.", "error");
+      return;
+    }
 
     const userMessage = {
       id: `user-${Date.now()}`,
@@ -211,28 +274,43 @@ export default function Dashboard() {
       timestamp: getCurrentTimestamp(),
     };
 
-    setChatMessages((prev) => [...prev, userMessage]);
+    const messageToSend = message;
+    setChatMessages((prev) => [
+      ...prev.filter((msg) => msg.id !== "welcome"),
+      userMessage,
+    ]);
     setMessage("");
     setIsTyping(true);
 
     axiosInstance
-      .post("/chat", { userMsg: message })
+      .post(`/chat/sessions/${activeSessionId}/messages`, {
+        userMsg: messageToSend,
+      })
       .then((response) => {
-        if (response.data.success) {
-          const aiMessage = {
-            id: `ai-${Date.now()}`,
-            type: "ai",
-            content: response.data.response,
-            timestamp: getCurrentTimestamp(),
-          };
-          setChatMessages((prev) => [...prev, aiMessage]);
-        } else {
-          notify(response.data.message || "❌ AI response failed!", "error");
+        if (!response.data.success) {
+          throw new Error(response.data.message);
+        }
+
+        const aiMessage = {
+          id: `ai-${Date.now()}`,
+          type: "ai",
+          content: response.data.response,
+          timestamp: getCurrentTimestamp(),
+        };
+
+        setChatMessages((prev) => [...prev, aiMessage]);
+        if (response.data.session) {
+          setSessions((prev) =>
+            prev.map((session) =>
+              session.sessionId === response.data.session.sessionId
+                ? response.data.session
+                : session,
+            ),
+          );
         }
       })
       .catch((error) => {
-        //console.error("Chat error:", error);
-        notify("❌ Failed to get AI response!", "error");
+        notify(error.message || "Failed to get AI response!", "error");
       })
       .finally(() => {
         setIsTyping(false);
@@ -241,51 +319,39 @@ export default function Dashboard() {
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
+    event.target.value = "";
     if (!file) return;
 
     setIsUploading(true);
 
     const formData = new FormData();
-    formData.append("pdfFile", file); // field name should match multer config
+    formData.append("pdfFile", file);
 
-    const toastId = notify("Uploading file...", "info", {
-      progress: 0,
-      autoClose: false,
-    });
+    const uploadPath = activeSessionId
+      ? `/upload?sessionId=${activeSessionId}`
+      : "/upload";
 
     axiosInstance
-      .post("/upload", formData, {
+      .post(uploadPath, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
-        onUploadProgress: (progressEvent) => {
-          const progress = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
-          );
-          notify("Uploading file...", "info", {
-            id: toastId,
-            progress: progress,
-            autoClose: false,
-          });
-        },
       })
       .then((response) => {
-        if (response.data.success) {
-          // Refresh files list after successful upload
-          return axiosInstance.get("/upload");
-        } else {
-          notify(response.data.message || "❌ Upload failed!", "error");
+        if (!response.data.success) {
+          throw new Error(response.data.message);
         }
+
+        return Promise.all([
+          refreshFiles(),
+          activeSessionId ? loadSessionFiles(activeSessionId) : Promise.resolve(),
+        ]);
       })
-      .then((response) => {
-        if (response && response.data.success) {
-          setFiles(response.data.files);
-          notify("✅ File uploaded successfully!", "success");
-        }
+      .then(() => {
+        notify("File uploaded successfully!", "success");
       })
       .catch((error) => {
-        //console.error("File upload error:", error);
-        notify("❌ File upload failed!", "error");
+        notify(error.message || "File upload failed!", "error");
       })
       .finally(() => {
         setIsUploading(false);
@@ -296,25 +362,23 @@ export default function Dashboard() {
     axiosInstance
       .delete(`/upload/${fileId}`)
       .then((response) => {
-        if (response.data.success) {
-          setFiles((prev) => prev.filter((file) => file.fileId !== fileId));
-          notify("✅ File deleted successfully!", "success");
-        } else {
-          notify(response.data.message || "❌ File deletion failed!", "error");
+        if (!response.data.success) {
+          throw new Error(response.data.message);
         }
+
+        setFiles((prev) => prev.filter((file) => file.fileId !== fileId));
+        setSessionFiles((prev) => prev.filter((file) => file.fileId !== fileId));
+        notify("File deleted successfully!", "success");
       })
-      .catch((error) => {
-        //console.error("File deletion error:", error);
-        notify("❌ File deletion failed!", "error");
+      .catch(() => {
+        notify("File deletion failed!", "error");
       });
   };
 
   const handleLogout = () => {
     removeToken();
-    notify("✅ You have been logged out successfully!", "success");
+    notify("You have been logged out successfully!", "success");
     navigate("/login", { replace: true });
-    // Perform logout logic (e.g., clear tokens, redirect)
-    console.log("User logged out");
   };
 
   const handleKeyDown = (e) => {
@@ -326,7 +390,7 @@ export default function Dashboard() {
 
   return (
     <div className="h-screen bg-white text-black flex flex-col">
-      {/* Top Navigation */}
+      <ToastContainer />
       <nav className="border-b-2 border-black px-6 py-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-3">
@@ -339,13 +403,10 @@ export default function Dashboard() {
               <User className="h-5 w-5" />
               <span className="font-semibold">{userData}</span>
             </div>
-            <div className="bg-black text-white px-3 py-2 text-sm font-mono">
-              {getCurrentTimestamp()}
-            </div>
-
             <button
               onClick={handleLogout}
               className="p-2 hover:bg-black hover:text-white transition-colors border border-black"
+              title="Log out"
             >
               <LogOut className="h-5 w-5" />
             </button>
@@ -354,18 +415,15 @@ export default function Dashboard() {
       </nav>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar - Files */}
         <div className="w-80 border-r-2 border-black bg-gray-50 flex flex-col">
           <div className="p-4 border-b border-black">
-            <h2 className="text-lg font-bold mb-4">Documents</h2>
-
-            {/* Upload Button */}
+            <h2 className="text-lg font-bold mb-4">Document Library</h2>
             <div className="relative">
               <input
                 type="file"
                 onChange={handleFileUpload}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                accept=".pdf,.doc,.docx,.txt"
+                accept=".pdf"
               />
               <button
                 className={`w-full p-3 border-2 border-black font-semibold transition-colors flex items-center justify-center ${
@@ -383,35 +441,36 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Upload Files
+                    Upload and Attach
                   </>
                 )}
               </button>
             </div>
-            {/* enter website */}
           </div>
 
-          {/* Files List */}
           <div className="flex-1 overflow-y-auto p-4">
             <div className="space-y-3">
+              {files.length === 0 && (
+                <div className="text-sm text-gray-500 border border-black p-3 bg-white">
+                  No documents uploaded yet.
+                </div>
+              )}
+
               {files.map((file) => {
+                const attached = isFileAttached(file.fileId);
                 const fileName = file.filePath || file.name;
                 const fileType =
                   fileName.split(".").pop()?.toUpperCase() || "FILE";
-                const fileSize = file.fileSize || "N/A";
-                const uploadTime = file.uploadedAt
-                  ? formatTimestamp(file.uploadedAt)
-                  : "N/A";
 
                 return (
                   <div
                     key={file.fileId}
                     className="bg-white border-2 border-black p-3 hover:shadow-lg transition-shadow"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center space-x-2 mb-1">
-                          <File className="h-4 w-4" />
+                          <File className="h-4 w-4 flex-shrink-0" />
                           <span
                             className="font-bold text-sm truncate"
                             title={fileName}
@@ -419,14 +478,31 @@ export default function Dashboard() {
                             {fileName}
                           </span>
                         </div>
-                        <div className="text-xs text-gray-600">
-                          {fileType} • {fileSize}
-                        </div>
+                        <div className="text-xs text-gray-600">{fileType}</div>
                         <div className="text-xs text-gray-500 mt-1">
-                          Uploaded at {uploadTime}
+                          Uploaded at {formatTimestamp(file.uploadedAt)}
                         </div>
                       </div>
                       <div className="flex flex-col space-y-1">
+                        <button
+                          className={`p-1 transition-colors ${
+                            attached
+                              ? "bg-black text-white"
+                              : "hover:bg-black hover:text-white"
+                          }`}
+                          onClick={() =>
+                            attached
+                              ? detachFile(file.fileId)
+                              : attachFile(file.fileId)
+                          }
+                          title={attached ? "Detach" : "Attach"}
+                        >
+                          {attached ? (
+                            <Check className="h-3 w-3" />
+                          ) : (
+                            <Plus className="h-3 w-3" />
+                          )}
+                        </button>
                         <button
                           className="p-1 hover:bg-black hover:text-white transition-colors"
                           title="Download"
@@ -449,9 +525,19 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
-          {/* Chat Messages Area */}
+          <div className="border-b border-black px-6 py-3 bg-gray-50">
+            <div className="max-w-4xl mx-auto flex items-center justify-between">
+              <div>
+                <h1 className="font-bold">{activeSession?.title || "New chat"}</h1>
+                <p className="text-sm text-gray-600">
+                  {sessionFiles.length} attached document
+                  {sessionFiles.length === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex-1 overflow-y-auto p-6">
             <div className="max-w-4xl mx-auto space-y-4">
               {isLoadingChat ? (
@@ -481,7 +567,7 @@ export default function Dashboard() {
                           {msg.type === "ai" && (
                             <Brain className="h-5 w-5 mt-1 flex-shrink-0" />
                           )}
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-0">
                             <ReactMarkdown
                               components={{
                                 code({
@@ -491,23 +577,20 @@ export default function Dashboard() {
                                   ...props
                                 }) {
                                   const match = /language-(\w+)/.exec(
-                                    className || ""
+                                    className || "",
                                   );
                                   return !inline && match ? (
                                     <div className="relative group">
-                                      {/* Copy Button */}
                                       <button
                                         onClick={() => {
                                           navigator.clipboard.writeText(
-                                            String(children).trim()
+                                            String(children).trim(),
                                           );
                                         }}
-                                        className="absolute top-2 right-2 bg-gray-700 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
+                                        className="absolute top-2 right-2 bg-gray-700 text-white text-xs px-2 py-1 opacity-0 group-hover:opacity-100 transition"
                                       >
                                         Copy
                                       </button>
-
-                                      {/* Syntax Highlighter */}
                                       <SyntaxHighlighter
                                         style={atomDark}
                                         language={match[1]}
@@ -519,7 +602,7 @@ export default function Dashboard() {
                                     </div>
                                   ) : (
                                     <code
-                                      className={`bg-gray-200 px-1 rounded text-sm ${
+                                      className={`bg-gray-200 px-1 text-sm ${
                                         className || ""
                                       }`}
                                       {...props}
@@ -547,7 +630,6 @@ export default function Dashboard() {
                     </div>
                   ))}
 
-                  {/* Typing Animation */}
                   {isTyping && (
                     <div className="flex justify-start">
                       <div className="max-w-3xl border-2 border-black bg-gray-50">
@@ -561,7 +643,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Message Input */}
           <div className="border-t-2 border-black p-4 bg-gray-50">
             <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto">
               <div className="flex space-x-3">
@@ -571,15 +652,19 @@ export default function Dashboard() {
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Enter your message..."
-                    disabled={isTyping}
+                    placeholder={
+                      sessionFiles.length === 0
+                        ? "Attach documents to start chatting..."
+                        : "Enter your message..."
+                    }
+                    disabled={isTyping || sessionFiles.length === 0}
                     className="w-full px-4 py-3 pr-12 border-2 border-black focus:outline-none focus:ring-2 focus:ring-gray-400 text-lg disabled:bg-gray-200 disabled:cursor-not-allowed"
                   />
                   <MessageSquare className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 </div>
                 <button
                   type="submit"
-                  disabled={!message.trim() || isTyping}
+                  disabled={!message.trim() || isTyping || sessionFiles.length === 0}
                   className="px-6 py-3 bg-black text-white font-semibold hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center"
                 >
                   <Send className="h-5 w-5 mr-2" />
@@ -590,59 +675,69 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right Sidebar - Chat Info */}
-        <div className="w-64 border-l-2 border-black bg-gray-50 p-4">
-          <div className="space-y-6">
-            <div>
-              <h3 className="font-bold mb-3">Chat Info</h3>
-              <div className="bg-white border border-black p-3">
-                <div className="text-sm text-gray-600">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Clock className="h-4 w-4" />
-                    <span>
-                      Last message:{" "}
-                      {chatMessages.length > 0
-                        ? chatMessages[chatMessages.length - 1].timestamp
-                        : getCurrentTimestamp()}
-                    </span>
-                  </div>
-                  <div>Messages: {chatMessages.length}</div>
-                  <div>Documents: {files.length}</div>
-                </div>
-              </div>
-            </div>
+        <div className="w-72 border-l-2 border-black bg-gray-50 flex flex-col">
+          <div className="p-4 border-b border-black">
+            <button
+              onClick={handleNewChat}
+              className="w-full p-2 border-2 border-black hover:bg-black hover:text-white transition-colors font-semibold flex items-center justify-center"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Chat
+            </button>
+          </div>
 
-            <div>
-              <h3 className="font-bold mb-3">Quick Actions</h3>
-              <div className="space-y-2">
-                <button className="w-full p-2 border border-black hover:bg-black hover:text-white transition-colors text-sm">
-                  New Chat
-                </button>
-                <button className="w-full p-2 border border-black hover:bg-black hover:text-white transition-colors text-sm">
-                  Export Chat
-                </button>
-                <button className="w-full p-2 border border-black hover:bg-black hover:text-white transition-colors text-sm">
-                  Clear History
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-bold mb-3">Recent Activity</h3>
-              <div className="bg-white border border-black p-3">
-                <div className="text-xs text-gray-600 space-y-2">
-                  {files.length > 0 && <div>• Document uploaded</div>}
-                  {chatMessages.length > 1 && <div>• AI analysis complete</div>}
-                  <div>
-                    • Chat session {isLoadingChat ? "loading" : "started"}
+          <div className="flex-1 overflow-y-auto p-4">
+            <h3 className="font-bold mb-3">Chats</h3>
+            <div className="space-y-2">
+              {sessions.map((session) => (
+                <button
+                  key={session.sessionId}
+                  onClick={() => setActiveSessionId(session.sessionId)}
+                  className={`w-full text-left border border-black p-3 transition-colors ${
+                    session.sessionId === activeSessionId
+                      ? "bg-black text-white"
+                      : "bg-white hover:bg-black hover:text-white"
+                  }`}
+                >
+                  <div className="font-semibold truncate">{session.title}</div>
+                  <div className="text-xs flex items-center mt-1 opacity-75">
+                    <Clock className="h-3 w-3 mr-1" />
+                    {formatTimestamp(session.updatedAt)}
                   </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-4 border-t border-black">
+            <h3 className="font-bold mb-3">Attached Docs</h3>
+            <div className="space-y-2">
+              {sessionFiles.length === 0 && (
+                <div className="text-sm text-gray-500 bg-white border border-black p-3">
+                  No documents attached.
                 </div>
-              </div>
+              )}
+              {sessionFiles.map((file) => (
+                <div
+                  key={file.fileId}
+                  className="bg-white border border-black p-2 flex items-center justify-between gap-2"
+                >
+                  <span className="text-sm font-semibold truncate">
+                    {file.filePath}
+                  </span>
+                  <button
+                    onClick={() => detachFile(file.fileId)}
+                    className="p-1 hover:bg-black hover:text-white"
+                    title="Detach"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </div>
-      <ToastContainer />
     </div>
   );
 }

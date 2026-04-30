@@ -10,6 +10,7 @@ uploads
 # code coverage
 coverage
 *.lcov
+*.codex
 
 # logs
 logs

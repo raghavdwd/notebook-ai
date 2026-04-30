@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
   integer,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
 export const userData = pgTable("user_data", {
@@ -15,8 +16,21 @@ export const userData = pgTable("user_data", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const chatSessions = pgTable("chat_sessions", {
+  sessionId: serial("session_id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => userData.userId, { onDelete: "cascade" }),
+  title: text("title").notNull().default("New chat"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const chats = pgTable("chats", {
   chatId: serial("chat_id").primaryKey(),
+  sessionId: integer("session_id")
+    .notNull()
+    .references(() => chatSessions.sessionId, { onDelete: "cascade" }),
   userId: integer("user_id")
     .notNull()
     .references(() => userData.userId, { onDelete: "cascade" }),
@@ -31,7 +45,21 @@ export const files = pgTable("files", {
     .notNull()
     .references(() => userData.userId, { onDelete: "cascade" }),
   filePath: text("file_path").notNull(),
-  vectorId: text("vector_id"),
-  chatId: text("chat_id"),
   uploadedAt: timestamp("uploaded_at").defaultNow(),
 });
+
+export const chatSessionFiles = pgTable(
+  "chat_session_files",
+  {
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => chatSessions.sessionId, { onDelete: "cascade" }),
+    fileId: integer("file_id")
+      .notNull()
+      .references(() => files.fileId, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.sessionId, table.fileId] }),
+  }),
+);
