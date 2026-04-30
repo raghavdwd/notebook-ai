@@ -194,6 +194,17 @@ export default function Login() {
                 🔒 Your data is encrypted and secure. We never store your
                 personal information.
               </p>
+              <p className="text-xs text-gray-600 text-center mt-2">
+                ✨ 100% Free &amp; Open Source •{" "}
+                <a
+                  href="https://github.com/raghavdwd/notebook-ai"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-black"
+                >
+                  raghavdwd/notebook-ai
+                </a>
+              </p>
             </div>
           </div>
         </div>

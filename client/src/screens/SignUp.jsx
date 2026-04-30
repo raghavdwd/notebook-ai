@@ -399,8 +399,18 @@ export default function Signup() {
 
             <div className="mt-8 p-4 border-2 border-black bg-white">
               <p className="text-sm text-gray-600">
-                <span className="font-semibold">14-day free trial</span> • No
-                credit card required • Cancel anytime
+                <span className="font-semibold">100% Free</span> • No credit card
+                required • Open source
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                <a
+                  href="https://github.com/raghavdwd/notebook-ai"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-black"
+                >
+                  github.com/raghavdwd/notebook-ai
+                </a>
               </p>
             </div>
           </div>

@@ -1,32 +1,34 @@
 import pino from "pino";
 
-// Console (pretty logs for dev)
-const prettyTransport = {
-  target: "pino-pretty",
-  options: {
-    colorize: true,
-    translateTime: "SYS:HH:MM:ss",
-    ignore: "pid,hostname",
-    levelFirst: true,
-  },
-  level: "debug",
-};
+const isDev = process.env.NODE_ENV !== "production";
 
-// File (JSON logs for production / analysis)
-const fileTransport = {
-  target: "pino/file",
-  options: {
-    destination: "./logs/app.log", // auto create file
-    mkdir: true, // create folder if missing
-  },
-  level: "info", // only info+ logs in file
-};
+const targets = [];
+
+if (isDev) {
+  targets.push({
+    target: "pino-pretty",
+    options: {
+      colorize: true,
+      translateTime: "SYS:HH:MM:ss",
+      ignore: "pid,hostname",
+      levelFirst: true,
+    },
+    level: "debug",
+  });
+} else {
+  targets.push({
+    target: "pino/file",
+    options: {
+      destination: "./logs/app.log",
+      mkdir: true,
+    },
+    level: "info",
+  });
+}
 
 export const logger = pino({
-  level: "debug",
-  transport: {
-    targets: [prettyTransport, fileTransport],
-  },
+  level: isDev ? "debug" : "info",
+  transport: isDev ? { targets } : undefined,
 });
 
 // export default logger;
