@@ -1,18 +1,13 @@
 import * as dotenv from "dotenv";
 dotenv.config({ path: "./.env.local" });
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import http from "http";
 import { app } from "./src/app.js";
 import { logger } from "./src/utils/logger.js";
+import { client } from "./src/database/chroma.db.js";
+const server = http.createServer(app);
 
 const port = process.env.PORT || 3000;
-const currentFile = fileURLToPath(import.meta.url);
-const invokedFile = process.argv[1] ? path.resolve(process.argv[1]) : "";
 
-if (currentFile === invokedFile) {
-  app.listen(port, () => {
-    logger.info(`Server is running on port ${port}`);
-  });
-}
-
-export default app;
+server.listen(port, () => {
+  logger.info(`Server is running on port ${port}`);
+});
