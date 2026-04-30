@@ -20,11 +20,12 @@ import { eq, and } from "drizzle-orm";
 
 export const handlePdfUpload = async (req, res) => {
   try {
+    // 1. Read the optional session ID so uploads can be auto-attached to the active chat
     const sessionId = req.query.sessionId
       ? Number.parseInt(req.query.sessionId, 10)
       : null;
 
-    // 1. Fetch the user from the database using the email from the authenticated request
+    // 2. Fetch the user from the database using the email from the authenticated request
     const userResult = await db
       .select({ userId: userData.userId })
       .from(userData)
@@ -33,12 +34,13 @@ export const handlePdfUpload = async (req, res) => {
     const user = userResult[0];
 
     logger.info("Uploaded file:", req.file);
-    // 2. If user not found, return a 404 error
+
+    // 3. If user not found, return a 404 error
     if (!user) {
       throw new ApiError(404, "User not found", [req.user.email]);
     }
 
-    // 3. If sessionId is provided, verify that the session exists and belongs to the user
+    // 4. If sessionId is provided, verify that the session exists and belongs to the user
     if (sessionId) {
       const sessionResult = await db
         .select()
@@ -51,7 +53,7 @@ export const handlePdfUpload = async (req, res) => {
         )
         .limit(1);
 
-      // 4. If session not found, return a 404 error
+      // 5. If session not found, return a 404 error
       if (!sessionResult[0]) {
         return res.status(404).json({
           success: false,
@@ -59,9 +61,11 @@ export const handlePdfUpload = async (req, res) => {
         });
       }
     }
-    // 5. Process the uploaded PDF: chunk it, generate embeddings, and store in ChromaDB
+
+    // 6. Load and split the uploaded PDF into page-level documents
     const pages = await chunkPdf(req.file.path);
 
+    // 7. Save the uploaded document in the user's global document library
     const [file] = await db
       .insert(files)
       .values({
@@ -70,6 +74,7 @@ export const handlePdfUpload = async (req, res) => {
       })
       .returning();
 
+    // 8. For each chunked page, generate embeddings and store in ChromaDB with metadata
     const addResults = await Promise.all(
       pages.map(async (page) => {
         const embedding = await getEmbeddings(page.pageContent);
@@ -90,6 +95,7 @@ export const handlePdfUpload = async (req, res) => {
       }),
     );
 
+    // 9. If sessionId was provided, associate the uploaded file with the chat session
     if (sessionId) {
       await db
         .insert(chatSessionFiles)
@@ -108,6 +114,7 @@ export const handlePdfUpload = async (req, res) => {
       message: "PDF uploaded and processed successfully",
     });
   } catch (error) {
+    // 10. Convert upload failures into a consistent API error
     logger.error("❌ Error in PDF upload handling:", error);
     throw new ApiError(500, "Failed to process PDF upload", [error.message]);
   }
@@ -115,6 +122,7 @@ export const handlePdfUpload = async (req, res) => {
 
 export const getUploadedFiles = async (req, res) => {
   try {
+    // 1. Fetch the user from the database using the authenticated email
     const userResult = await db
       .select({ userId: userData.userId })
       .from(userData)
@@ -122,10 +130,12 @@ export const getUploadedFiles = async (req, res) => {
       .limit(1);
     const user = userResult[0];
 
+    // 2. If user not found, return a 404 error
     if (!user) {
       throw new ApiError(404, "User not found", [req.user.email]);
     }
 
+    // 3. Fetch all documents in the user's global document library
     const fetchedFiles = await db
       .select({
         fileId: files.fileId,
@@ -135,22 +145,26 @@ export const getUploadedFiles = async (req, res) => {
       .from(files)
       .where(eq(files.userId, user.userId));
 
+    // 4. Return the uploaded documents to the client
     return res.json({
       success: true,
       files: fetchedFiles,
       message: "Files fetched successfully",
     });
   } catch (error) {
+    // 5. Convert fetch failures into a consistent API error
     logger.error("❌ Error in fetching uploaded files:", error);
     throw new ApiError(500, "Failed to fetch uploaded files", [error.message]);
   }
 };
 
 export const deleteUploadedFiles = async (req, res) => {
+  // 1. Read the authenticated user ID and requested file ID
   const userId = req.user.userId;
   const fileId = parseInt(req.params.fileId, 10);
 
   try {
+    // 2. Verify that the requested file exists and belongs to this user
     const fileResult = await db
       .select()
       .from(files)
@@ -158,18 +172,23 @@ export const deleteUploadedFiles = async (req, res) => {
       .limit(1);
     const file = fileResult[0];
 
+    // 3. If file not found, return a 404 error
     if (!file) {
       throw new ApiError(404, "File not found", [fileId]);
     }
 
     console.log(file);
+
+    // 4. Delete the file record; session attachments cascade from schema constraints
     await db.delete(files).where(eq(files.fileId, fileId));
 
+    // 5. Confirm deletion to the client
     return res.json({
       success: true,
       message: "File deleted successfully",
     });
   } catch (error) {
+    // 6. Convert delete failures into a consistent API error
     logger.error("❌ Error in deleting uploaded files:", error);
     throw new ApiError(500, "Failed to delete uploaded files", [error.message]);
   }

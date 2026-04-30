@@ -2,6 +2,8 @@ import { CloudClient } from "chromadb";
 import { logger } from "../utils/logger.js";
 import { CHROMADB_API_KEY } from "../../config/contants.js";
 
+let chromaPromise;
+
 async function initChroma() {
   const client = new CloudClient({
     apiKey: CHROMADB_API_KEY,
@@ -18,4 +20,16 @@ async function initChroma() {
   return { client, collection };
 }
 
-export const { client, collection } = await initChroma();
+export function getChroma() {
+  if (!chromaPromise) {
+    chromaPromise = initChroma();
+  }
+
+  return chromaPromise;
+}
+
+export async function getChromaCollection() {
+  const { collection } = await getChroma();
+
+  return collection;
+}

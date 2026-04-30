@@ -39,3 +39,7 @@ app.use("/api/v1/upload", verifyJwtToken, uploadRoute);
 app.get("/", (req, res) => {
   res.send("Welcome to the Notebook API");
 });
+
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});

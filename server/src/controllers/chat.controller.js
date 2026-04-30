@@ -17,23 +17,33 @@ import { logger } from "../utils/logger.js";
 
 const DEFAULT_CHAT_TITLE = "New chat";
 
+// Helper function to safely parse route params into numeric IDs
 const parseId = (value) => {
   const id = Number.parseInt(value, 10);
   return Number.isNaN(id) ? null : id;
 };
 
+// Helper function to fetch a session only if it belongs to the authenticated user
 const getSessionForUser = async (sessionId, userId) => {
   const result = await db
     .select()
     .from(chatSessions)
-    .where(and(eq(chatSessions.sessionId, sessionId), eq(chatSessions.userId, userId)))
+    .where(
+      and(eq(chatSessions.sessionId, sessionId), eq(chatSessions.userId, userId)),
+    )
     .limit(1);
 
   return result[0];
 };
 
+/**
+ * Controller for handling chat sessions and session-scoped chat messages.
+ * This includes creating sessions, attaching documents, fetching history, and chatting with selected documents.
+ */
+
 export const createChatSession = async (req, res) => {
   try {
+    // 1. Create a new empty chat session for the authenticated user
     const [session] = await db
       .insert(chatSessions)
       .values({
@@ -55,6 +65,7 @@ export const createChatSession = async (req, res) => {
 
 export const getChatSessions = async (req, res) => {
   try {
+    // 1. Fetch all sessions owned by the authenticated user, newest activity first
     const sessions = await db
       .select()
       .from(chatSessions)
@@ -73,17 +84,24 @@ export const getChatSessions = async (req, res) => {
 };
 
 export const deleteChatSession = async (req, res) => {
+  // 1. Parse and validate the session ID from request params
   const sessionId = parseId(req.params.sessionId);
   if (!sessionId) {
-    return res.status(400).json({ success: false, message: "Invalid session ID" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid session ID" });
   }
 
   try {
+    // 2. Verify that the session exists and belongs to the authenticated user
     const session = await getSessionForUser(sessionId, req.user.userId);
     if (!session) {
-      return res.status(404).json({ success: false, message: "Session not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Session not found" });
     }
 
+    // 3. Delete the session; related messages and file attachments cascade from schema constraints
     await db.delete(chatSessions).where(eq(chatSessions.sessionId, sessionId));
 
     return res.json({
@@ -97,17 +115,24 @@ export const deleteChatSession = async (req, res) => {
 };
 
 export const getSessionFiles = async (req, res) => {
+  // 1. Parse and validate the session ID from request params
   const sessionId = parseId(req.params.sessionId);
   if (!sessionId) {
-    return res.status(400).json({ success: false, message: "Invalid session ID" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid session ID" });
   }
 
   try {
+    // 2. Verify that the session exists and belongs to the authenticated user
     const session = await getSessionForUser(sessionId, req.user.userId);
     if (!session) {
-      return res.status(404).json({ success: false, message: "Session not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Session not found" });
     }
 
+    // 3. Fetch all documents attached to this specific chat session
     const attachedFiles = await db
       .select({
         fileId: files.fileId,
@@ -131,18 +156,25 @@ export const getSessionFiles = async (req, res) => {
 };
 
 export const attachFileToSession = async (req, res) => {
+  // 1. Parse and validate the session ID and file ID
   const sessionId = parseId(req.params.sessionId);
   const fileId = parseId(req.body.fileId);
   if (!sessionId || !fileId) {
-    return res.status(400).json({ success: false, message: "Invalid session or file ID" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid session or file ID" });
   }
 
   try {
+    // 2. Verify that the session exists and belongs to the authenticated user
     const session = await getSessionForUser(sessionId, req.user.userId);
     if (!session) {
-      return res.status(404).json({ success: false, message: "Session not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Session not found" });
     }
 
+    // 3. Verify that the file exists in the user's global document library
     const fileResult = await db
       .select()
       .from(files)
@@ -153,6 +185,7 @@ export const attachFileToSession = async (req, res) => {
       return res.status(404).json({ success: false, message: "File not found" });
     }
 
+    // 4. Attach the document to the session; duplicate attachments are ignored
     await db
       .insert(chatSessionFiles)
       .values({ sessionId, fileId })
@@ -169,18 +202,25 @@ export const attachFileToSession = async (req, res) => {
 };
 
 export const detachFileFromSession = async (req, res) => {
+  // 1. Parse and validate the session ID and file ID
   const sessionId = parseId(req.params.sessionId);
   const fileId = parseId(req.params.fileId);
   if (!sessionId || !fileId) {
-    return res.status(400).json({ success: false, message: "Invalid session or file ID" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid session or file ID" });
   }
 
   try {
+    // 2. Verify that the session exists and belongs to the authenticated user
     const session = await getSessionForUser(sessionId, req.user.userId);
     if (!session) {
-      return res.status(404).json({ success: false, message: "Session not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Session not found" });
     }
 
+    // 3. Remove the document from this session without deleting it from the global library
     await db
       .delete(chatSessionFiles)
       .where(
@@ -201,21 +241,30 @@ export const detachFileFromSession = async (req, res) => {
 };
 
 export const getSessionMessages = async (req, res) => {
+  // 1. Parse and validate the session ID from request params
   const sessionId = parseId(req.params.sessionId);
   if (!sessionId) {
-    return res.status(400).json({ success: false, message: "Invalid session ID" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid session ID" });
   }
 
   try {
+    // 2. Verify that the session exists and belongs to the authenticated user
     const session = await getSessionForUser(sessionId, req.user.userId);
     if (!session) {
-      return res.status(404).json({ success: false, message: "Session not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Session not found" });
     }
 
+    // 3. Fetch chat messages only from the selected session
     const messages = await db
       .select()
       .from(chats)
-      .where(and(eq(chats.sessionId, sessionId), eq(chats.userId, req.user.userId)))
+      .where(
+        and(eq(chats.sessionId, sessionId), eq(chats.userId, req.user.userId)),
+      )
       .orderBy(asc(chats.createdAt));
 
     return res.json({
@@ -230,22 +279,31 @@ export const getSessionMessages = async (req, res) => {
 };
 
 export const chatWithPdf = async (req, res) => {
+  // 1. Parse the active session ID and user message from the request
   const sessionId = parseId(req.params.sessionId);
   const { userMsg } = req.body;
 
   if (!sessionId) {
-    return res.status(400).json({ success: false, message: "Invalid session ID" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid session ID" });
   }
   if (!userMsg?.trim()) {
-    return res.status(400).json({ success: false, message: "Message is required" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Message is required" });
   }
 
   try {
+    // 2. Verify that the session exists and belongs to the authenticated user
     const session = await getSessionForUser(sessionId, req.user.userId);
     if (!session) {
-      return res.status(404).json({ success: false, message: "Session not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Session not found" });
     }
 
+    // 3. Fetch the document IDs attached to this session for scoped vector search
     const attachedFiles = await db
       .select({ fileId: chatSessionFiles.fileId })
       .from(chatSessionFiles)
@@ -258,17 +316,22 @@ export const chatWithPdf = async (req, res) => {
       );
 
     if (attachedFiles.length === 0) {
+      // 4. Stop early if the session does not have any selected documents
       return res.json({
         success: false,
         message: "Attach at least one document to this chat before asking questions.",
       });
     }
 
+    // 5. Embed the user question and search only within the selected session documents
     const fileIds = attachedFiles.map((file) => file.fileId);
     const embeddings = await getEmbeddings(userMsg);
     const results = await searchVector(embeddings, req.user.userId, fileIds);
+
+    // 6. Generate an AI response using the scoped document chunks
     const responseFromAI = await getTextResponse(userMsg, results);
 
+    // 7. Save the user message and AI response in this chat session
     const [savedMessage] = await db
       .insert(chats)
       .values({
@@ -280,13 +343,18 @@ export const chatWithPdf = async (req, res) => {
       .returning();
 
     let title = session.title;
+
+    // 8. Check if this was the first saved message in the session
     const previousMessages = await db
       .select({ chatId: chats.chatId })
       .from(chats)
-      .where(and(eq(chats.sessionId, sessionId), eq(chats.userId, req.user.userId)));
+      .where(
+        and(eq(chats.sessionId, sessionId), eq(chats.userId, req.user.userId)),
+      );
 
     if (session.title === DEFAULT_CHAT_TITLE && previousMessages.length === 1) {
       try {
+        // 9. Generate a short AI title after the first successful message
         title = await generateChatTitle(userMsg);
       } catch (error) {
         logger.error("Error generating chat title:", error.message);
@@ -294,6 +362,7 @@ export const chatWithPdf = async (req, res) => {
       }
     }
 
+    // 10. Update the session title and activity timestamp
     const [updatedSession] = await db
       .update(chatSessions)
       .set({
