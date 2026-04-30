@@ -21,12 +21,12 @@ export const getEmbeddings = async (text) => {
 
 export const getTextResponse = async (userMsg, vectorData) => {
   const response = await openai.chat.completions.create({
-    model: "gemini-2.5-pro",
+    model: "gemini-2.5-flash",
     messages: [
       {
         role: "system",
         content: `Based on user query you have to provide user a structured and formatted response from provide a pdf chunked data. you have to provide user page source and important data related to user query.Here is pdf vectorData: ${JSON.stringify(
-          vectorData
+          vectorData,
         )}`,
       },
       {

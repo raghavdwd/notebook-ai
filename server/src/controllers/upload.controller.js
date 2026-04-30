@@ -4,13 +4,14 @@ import { v4 as uuidv4 } from "uuid";
 import { addVector, deleteVector } from "../services/chromadb.service.js";
 import { logger } from "../utils/logger.js";
 import ApiError from "../utils/ApiError.js";
-import { db, runQuery } from "../database/sqlLite.db.js";
+import { db } from "../database/postgres.db.js";
+import { userData, files } from "../database/schema.js";
+import { eq, and } from "drizzle-orm";
 
 export const handlePdfUpload = async (req, res) => {
-  //console.log("📂 Uploaded File:", req.file);
-  const user = runQuery("SELECT userId FROM userData WHERE email = ? LIMIT 1", [
-    req.user.email,
-  ]);
+  const userResult = await db.select({ userId: userData.userId }).from(userData).where(eq(userData.email, req.user.email)).limit(1);
+  const user = userResult[0];
+
   console.log("User found:", user);
   try {
     logger.info("Uploaded file:", req.file);
@@ -19,14 +20,11 @@ export const handlePdfUpload = async (req, res) => {
     }
     const pages = await chunkPdf(req.file.path);
 
-    // 3️⃣ Process each page
     const addResults = await Promise.all(
       pages.map(async (page) => {
-        // Generate embedding
         const embedding = await getEmbeddings(page.pageContent);
-        // Create unique vector ID
         const id = uuidv4();
-        // Add vector to ChromaDB (or whichever DB)
+        
         const vectorResult = await addVector({
           id,
           embedding,
@@ -38,20 +36,17 @@ export const handlePdfUpload = async (req, res) => {
         console.log("🧩 Vector inserted with ID:", vectorResult.id);
 
         const chatId = uuidv4();
-        await runQuery(
-          `
-    INSERT INTO files (userId, filePath, vectorId, chatId)
-    VALUES (?, ?, ?, ?)
-  `,
-          [user.userId, req.file.path, vectorResult.id, chatId]
-        );
+        await db.insert(files).values({
+          userId: user.userId,
+          filePath: req.file.path,
+          vectorId: vectorResult.id,
+          chatId: chatId
+        });
 
-        // console.log("✅ File inserted with ID:", fileInsert.lastInsertRowid);
         return vectorResult.id;
       })
     );
 
-    // 4️⃣ Response
     logger.info(`Added ${addResults.length} page vectors successfully.`);
     return res.json({
       success: true,
@@ -66,23 +61,18 @@ export const handlePdfUpload = async (req, res) => {
 
 export const getUploadedFiles = async (req, res) => {
   try {
-    const user = await runQuery(
-      "SELECT userId FROM userData WHERE email = ? LIMIT 1",
-      [req.user.email]
-    );
+    const userResult = await db.select({ userId: userData.userId }).from(userData).where(eq(userData.email, req.user.email)).limit(1);
+    const user = userResult[0];
 
     if (!user) {
       throw new ApiError(404, "User not found", [req.user.email]);
     }
 
-    const files = await runQuery(
-      "SELECT fileId, filePath FROM files WHERE userId = ?",
-      [user.userId]
-    );
+    const fetchedFiles = await db.select({ fileId: files.fileId, filePath: files.filePath }).from(files).where(eq(files.userId, user.userId));
 
     return res.json({
       success: true,
-      files: files,
+      files: fetchedFiles,
       message: "Files fetched successfully",
     });
   } catch (error) {
@@ -93,24 +83,19 @@ export const getUploadedFiles = async (req, res) => {
 
 export const deleteUploadedFiles = async (req, res) => {
   const userId = req.user.userId;
-  const fileId = req.params.fileId;
+  const fileId = parseInt(req.params.fileId, 10);
 
   try {
-    // Check if file exists
-    const file = await runQuery(
-      "SELECT * FROM files WHERE fileId = ? AND userId = ?",
-      [fileId, userId]
-    );
+    const fileResult = await db.select().from(files).where(and(eq(files.fileId, fileId), eq(files.userId, userId))).limit(1);
+    const file = fileResult[0];
+
     if (!file) {
       throw new ApiError(404, "File not found", [fileId]);
     }
-    //delete vectorIds from chroma db
+    
     console.log(file);
-
-    await deleteVector(file[0].vectorId);
-
-    // Delete file from database
-    await runQuery("DELETE FROM files WHERE fileId = ?", [fileId]);
+    await deleteVector(file.vectorId);
+    await db.delete(files).where(eq(files.fileId, fileId));
 
     return res.json({
       success: true,

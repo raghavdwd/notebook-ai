@@ -1,15 +1,15 @@
-import { runQuery } from "../database/sqlLite.db.js";
+import { db } from "../database/postgres.db.js";
+import { chats } from "../database/schema.js";
+import { eq, asc } from "drizzle-orm";
 
 export const getChatHistory = async (req, res) => {
   const userId = req.user.userId;
 
   try {
-    const chatHistory = await runQuery(
-      `SELECT * FROM chats 
-       WHERE userId = ? 
-       ORDER BY createdAt ASC`, // ✅ oldest → newest
-      [userId]
-    );
+    const chatHistory = await db.select()
+      .from(chats)
+      .where(eq(chats.userId, userId))
+      .orderBy(asc(chats.createdAt));
 
     res.json({
       success: true,

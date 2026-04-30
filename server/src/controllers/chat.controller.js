@@ -2,57 +2,58 @@ import { searchVector } from "../services/chromadb.service.js";
 import { getEmbeddings, getTextResponse } from "../services/llm.service.js";
 import ApiError from "../utils/ApiError.js";
 import { logger } from "../utils/logger.js";
-
-import { db, runQuery } from "../database/sqlLite.db.js";
+import { db } from "../database/postgres.db.js";
+import { userData, files, chats } from "../database/schema.js";
+import { eq } from "drizzle-orm";
 
 export const chatWithPdf = async (req, res) => {
   const { userMsg } = req.body;
-  const user = await runQuery(
-    "SELECT userId FROM userData WHERE email = ? LIMIT 1",
-    [req.user.email]
-  );
+  const userResult = await db
+    .select({ userId: userData.userId })
+    .from(userData)
+    .where(eq(userData.email, req.user.email))
+    .limit(1);
+  const user = userResult[0];
 
   logger.info(userMsg);
 
   try {
-    // Fetch chatId
-    const files = await runQuery("SELECT chatId FROM files WHERE userId = ?", [
-      user.userId,
-    ]);
+    const fetchedFiles = await db
+      .select({ chatId: files.chatId })
+      .from(files)
+      .where(eq(files.userId, user.userId));
 
-    if (!files || files.length === 0) {
+    if (!fetchedFiles || fetchedFiles.length === 0) {
       return res.json({
         success: false,
         message: "No files uploaded. Please upload files to start chatting.",
       });
     }
 
-    const chatId = files[0].chatId;
-    console.log("chatid", chatId);
+    const chatId = fetchedFiles[0].chatId;
+    // console.log("chatid", chatId);
 
-    // Generate embedding
     const embeddings = await getEmbeddings(userMsg);
-    console.log("embedding length", embeddings.length);
+    // console.log("embedding length", embeddings.length);
 
-    // ✅ Flatten vectorIds
-    const vectorRows = await runQuery(
-      `SELECT vectorId FROM files WHERE userId = ?`,
-      [req.user.userId]
-    );
+    const vectorRows = await db
+      .select({ vectorId: files.vectorId })
+      .from(files)
+      .where(eq(files.userId, req.user.userId));
     const vectorIds = vectorRows.map((row) => row.vectorId);
-    console.log("vectorIds", vectorIds);
+    // console.log("vectorIds", vectorIds);
 
-    // Query Chroma
     const results = await searchVector(embeddings, req.user.userId);
-    console.log("chroma results", results);
+    // console.log("chroma results", results);
 
-    // Get AI response
     const responseFromAI = await getTextResponse(userMsg, results);
-    //saving into database
-    await runQuery(
-      `INSERT INTO chats (userId, userMsg, aiResponse) VALUES (?, ?, ?)`,
-      [user.userId, userMsg, responseFromAI]
-    );
+
+    await db.insert(chats).values({
+      userId: user.userId,
+      userMsg: userMsg,
+      aiResponse: responseFromAI,
+    });
+
     logger.info("Chat history saved successfully");
 
     return res.status(200).json({
@@ -66,5 +67,3 @@ export const chatWithPdf = async (req, res) => {
     throw new ApiError("Failed to process chat request", 500);
   }
 };
-
-// export const handleUserChats = (req,res)={}
