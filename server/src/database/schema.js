@@ -22,6 +22,7 @@ export const chatSessions = pgTable("chat_sessions", {
     .notNull()
     .references(() => userData.userId, { onDelete: "cascade" }),
   title: text("title").notNull().default("New chat"),
+  contextSummary: text("context_summary"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

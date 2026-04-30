@@ -37,13 +37,18 @@ export default function Home() {
               Get Started Free
               <ChevronRight className="ml-2 h-5 w-5" />
             </button>
-            <button
-              onClick={() => alert("Demo video coming soon!")}
-              className="border-2 border-black px-8 py-4 text-lg font-semibold hover:bg-black hover:text-white transition-colors"
+            <a
+              href="https://github.com/raghavdwd/notebook-ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="border-2 border-black px-8 py-4 text-lg font-semibold hover:bg-black hover:text-white transition-colors flex items-center justify-center"
             >
-              Watch Demo
-            </button>
+              View on GitHub
+            </a>
           </div>
+          <p className="text-sm text-gray-500 mt-4">
+            ✨ 100% Free &amp; Open Source Forever • No Credit Card Required
+          </p>
         </div>
       </section>
 
@@ -151,101 +156,40 @@ export default function Home() {
               onClick={() => navigate("/signup")}
               className="bg-white text-black px-8 py-4 text-lg font-semibold hover:bg-gray-100 transition-colors"
             >
-              Start Free Trial
+              Get Started Free
             </button>
-            <button
-              onClick={() => alert("Demo video coming soon!")}
-              className="border-2 border-white px-8 py-4 text-lg font-semibold hover:bg-white hover:text-black transition-colors"
+            <a
+              href="https://github.com/raghavdwd/notebook-ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="border-2 border-white px-8 py-4 text-lg font-semibold hover:bg-white hover:text-black transition-colors inline-block"
             >
-              Schedule Demo
-            </button>
+              View on GitHub
+            </a>
           </div>
           <p className="text-sm text-gray-400 mt-4">
-            No credit card required • 14-day free trial
+            100% Free Forever • Open Source • No Credit Card
           </p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-black py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-8">
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <Brain className="h-6 w-6" />
-                <span className="text-lg font-bold">NotebookAI</span>
-              </div>
-              <p className="text-gray-600">
-                AI-powered document analysis and research assistant.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="font-bold mb-4">Product</h4>
-              <ul className="space-y-2 text-gray-600">
-                <li>
-                  <a href="#" className="hover:text-black">
-                    Features
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-black">
-                    Pricing
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-black">
-                    API
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-bold mb-4">Company</h4>
-              <ul className="space-y-2 text-gray-600">
-                <li>
-                  <a href="#about" className="hover:text-black">
-                    About
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-black">
-                    Blog
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-black">
-                    Careers
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-bold mb-4">Support</h4>
-              <ul className="space-y-2 text-gray-600">
-                <li>
-                  <a href="#" className="hover:text-black">
-                    Help Center
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-black">
-                    Contact
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-black">
-                    Privacy
-                  </a>
-                </li>
-              </ul>
-            </div>
+      <footer className="border-t border-black py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center">
+          <div className="flex items-center space-x-2 mb-4 md:mb-0">
+            <Brain className="h-6 w-6" />
+            <span className="text-lg font-bold">NotebookAI</span>
           </div>
-
-          <div className="border-t border-gray-200 mt-8 pt-8 text-center text-gray-600">
-            <p>&copy; 2025 NotebookAI. All rights reserved.</p>
+          <a
+            href="https://github.com/raghavdwd/notebook-ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-600 hover:text-black"
+          >
+            GitHub
+          </a>
+          <div className="text-gray-500 text-sm mt-4 md:mt-0">
+            &copy; 2025 NotebookAI. Open source & free forever.
           </div>
         </div>
       </footer>

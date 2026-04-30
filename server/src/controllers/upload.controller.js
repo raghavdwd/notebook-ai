@@ -2,7 +2,6 @@ import { chunkPdf } from "../services/langchain.service.js";
 import { getEmbeddings } from "../services/llm.service.js";
 import { v4 as uuidv4 } from "uuid";
 import { addVector } from "../services/chromadb.service.js";
-import { logger } from "../utils/logger.js";
 import ApiError from "../utils/ApiError.js";
 import { db } from "../database/postgres.db.js";
 import {
@@ -33,7 +32,7 @@ export const handlePdfUpload = async (req, res) => {
       .limit(1);
     const user = userResult[0];
 
-    logger.info("Uploaded file:", req.file);
+    console.log("Uploaded file:", req.file);
 
     // 3. If user not found, return a 404 error
     if (!user) {
@@ -106,7 +105,7 @@ export const handlePdfUpload = async (req, res) => {
         .onConflictDoNothing();
     }
 
-    logger.info(`Added ${addResults.length} page vectors successfully.`);
+    console.log(`Added ${addResults.length} page vectors successfully.`);
     return res.json({
       success: true,
       file,
@@ -115,7 +114,7 @@ export const handlePdfUpload = async (req, res) => {
     });
   } catch (error) {
     // 10. Convert upload failures into a consistent API error
-    logger.error("❌ Error in PDF upload handling:", error);
+    console.error("Error in PDF upload handling:", error);
     throw new ApiError(500, "Failed to process PDF upload", [error.message]);
   }
 };
@@ -153,7 +152,7 @@ export const getUploadedFiles = async (req, res) => {
     });
   } catch (error) {
     // 5. Convert fetch failures into a consistent API error
-    logger.error("❌ Error in fetching uploaded files:", error);
+    console.error(" Error in fetching uploaded files:", error);
     throw new ApiError(500, "Failed to fetch uploaded files", [error.message]);
   }
 };
@@ -189,7 +188,7 @@ export const deleteUploadedFiles = async (req, res) => {
     });
   } catch (error) {
     // 6. Convert delete failures into a consistent API error
-    logger.error("❌ Error in deleting uploaded files:", error);
+    console.error(" Error in deleting uploaded files:", { error });
     throw new ApiError(500, "Failed to delete uploaded files", [error.message]);
   }
 };

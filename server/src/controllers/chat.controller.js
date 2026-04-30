@@ -11,9 +11,9 @@ import {
   generateChatTitle,
   getEmbeddings,
   getTextResponse,
+  summarizeConversation,
 } from "../services/llm.service.js";
 import ApiError from "../utils/ApiError.js";
-import { logger } from "../utils/logger.js";
 
 const DEFAULT_CHAT_TITLE = "New chat";
 
@@ -29,7 +29,10 @@ const getSessionForUser = async (sessionId, userId) => {
     .select()
     .from(chatSessions)
     .where(
-      and(eq(chatSessions.sessionId, sessionId), eq(chatSessions.userId, userId)),
+      and(
+        eq(chatSessions.sessionId, sessionId),
+        eq(chatSessions.userId, userId),
+      ),
     )
     .limit(1);
 
@@ -58,7 +61,7 @@ export const createChatSession = async (req, res) => {
       message: "Chat session created successfully",
     });
   } catch (error) {
-    logger.error("Error creating chat session:", error.message);
+    console.error("Error creating chat session:", { message: error.message });
     throw new ApiError(500, "Failed to create chat session");
   }
 };
@@ -78,7 +81,7 @@ export const getChatSessions = async (req, res) => {
       message: "Chat sessions fetched successfully",
     });
   } catch (error) {
-    logger.error("Error fetching chat sessions:", error.message);
+    console.error("Error fetching chat sessions:", { message: error.message });
     throw new ApiError(500, "Failed to fetch chat sessions");
   }
 };
@@ -109,7 +112,7 @@ export const deleteChatSession = async (req, res) => {
       message: "Chat session deleted successfully",
     });
   } catch (error) {
-    logger.error("Error deleting chat session:", error.message);
+    console.error("Error deleting chat session:", { message: error.message });
     throw new ApiError(500, "Failed to delete chat session");
   }
 };
@@ -150,7 +153,7 @@ export const getSessionFiles = async (req, res) => {
       message: "Session files fetched successfully",
     });
   } catch (error) {
-    logger.error("Error fetching session files:", error.message);
+    console.error("Error fetching session files:", { message: error.message });
     throw new ApiError(500, "Failed to fetch session files");
   }
 };
@@ -182,7 +185,9 @@ export const attachFileToSession = async (req, res) => {
       .limit(1);
 
     if (!fileResult[0]) {
-      return res.status(404).json({ success: false, message: "File not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "File not found" });
     }
 
     // 4. Attach the document to the session; duplicate attachments are ignored
@@ -196,7 +201,7 @@ export const attachFileToSession = async (req, res) => {
       message: "File attached to session successfully",
     });
   } catch (error) {
-    logger.error("Error attaching file to session:", error.message);
+    console.error("Error attaching file to session:", { message: error.message });
     throw new ApiError(500, "Failed to attach file to session");
   }
 };
@@ -235,7 +240,7 @@ export const detachFileFromSession = async (req, res) => {
       message: "File detached from session successfully",
     });
   } catch (error) {
-    logger.error("Error detaching file from session:", error.message);
+    console.error("Error detaching file from session:", { message: error.message });
     throw new ApiError(500, "Failed to detach file from session");
   }
 };
@@ -273,7 +278,7 @@ export const getSessionMessages = async (req, res) => {
       message: "Session messages fetched successfully",
     });
   } catch (error) {
-    logger.error("Error fetching session messages:", error.message);
+    console.error("Error fetching session messages:", { message: error.message });
     throw new ApiError(500, "Failed to fetch session messages");
   }
 };
@@ -319,19 +324,78 @@ export const chatWithPdf = async (req, res) => {
       // 4. Stop early if the session does not have any selected documents
       return res.json({
         success: false,
-        message: "Attach at least one document to this chat before asking questions.",
+        message:
+          "Attach at least one document to this chat before asking questions.",
       });
     }
 
-    // 5. Embed the user question and search only within the selected session documents
+    // 5. Fetch session messages and prepare history
+    const previousMessages = await db
+      .select()
+      .from(chats)
+      .where(
+        and(eq(chats.sessionId, sessionId), eq(chats.userId, req.user.userId)),
+      )
+      .orderBy(asc(chats.createdAt));
+
+    let history = [];
+    if (session.contextSummary) {
+      history.push({
+        role: "system",
+        content: `Previous conversation summary: ${session.contextSummary}`,
+      });
+    }
+
+    const recentMessages = previousMessages.slice(-10);
+    for (const msg of recentMessages) {
+      history.push({ role: "user", content: msg.userMsg });
+      history.push({ role: "assistant", content: msg.aiResponse });
+    }
+
+    // 6. If more than 10 messages, trigger compaction
+    if (previousMessages.length > 10) {
+      console.log("Triggering conversation compaction");
+      try {
+        const summary = await summarizeConversation(previousMessages);
+        if (summary) {
+          await db
+            .update(chatSessions)
+            .set({ contextSummary: summary })
+            .where(eq(chatSessions.sessionId, sessionId));
+          console.log("Conversation compacted successfully");
+        }
+      } catch (err) {
+        console.error("Error during compaction:", { message: err.message });
+      }
+    }
+
+    // 7. Embed the user question and search only within the selected session documents
     const fileIds = attachedFiles.map((file) => file.fileId);
-    const embeddings = await getEmbeddings(userMsg);
-    const results = await searchVector(embeddings, req.user.userId, fileIds);
+    let results = [];
+    try {
+      const embeddings = await getEmbeddings(userMsg);
+      results = await searchVector(embeddings, req.user.userId, fileIds);
+    } catch (err) {
+      console.error("Error in vector search:", err.message);
+      console.error("fileIds:", { fileIds });
+      results = [];
+    }
 
-    // 6. Generate an AI response using the scoped document chunks
-    const responseFromAI = await getTextResponse(userMsg, results);
+    console.log("History length:", history.length);
 
-    // 7. Save the user message and AI response in this chat session
+    // 8. Generate an AI response using the scoped document chunks and history
+    try {
+      var responseFromAI = await getTextResponse(userMsg, results, history);
+    } catch (err) {
+      console.error("Error in getTextResponse:", err.message);
+      console.error("Error stack:", err.stack);
+      if (err.response?.data) {
+        console.error("Error response data:", JSON.stringify(err.response.data));
+      }
+      throw err;
+    }
+
+    // 9. Save the user message and AI response in this chat session
     const [savedMessage] = await db
       .insert(chats)
       .values({
@@ -344,25 +408,18 @@ export const chatWithPdf = async (req, res) => {
 
     let title = session.title;
 
-    // 8. Check if this was the first saved message in the session
-    const previousMessages = await db
-      .select({ chatId: chats.chatId })
-      .from(chats)
-      .where(
-        and(eq(chats.sessionId, sessionId), eq(chats.userId, req.user.userId)),
-      );
-
-    if (session.title === DEFAULT_CHAT_TITLE && previousMessages.length === 1) {
+    // 10. Check if this was the first saved message in the session
+    if (session.title === DEFAULT_CHAT_TITLE && previousMessages.length === 0) {
       try {
-        // 9. Generate a short AI title after the first successful message
+        // 11. Generate a short AI title after the first successful message
         title = await generateChatTitle(userMsg);
       } catch (error) {
-        logger.error("Error generating chat title:", error.message);
+        console.error("Error generating chat title:", { message: error.message });
         title = userMsg.slice(0, 40);
       }
     }
 
-    // 10. Update the session title and activity timestamp
+    // 12. Update the session title and activity timestamp
     const [updatedSession] = await db
       .update(chatSessions)
       .set({
@@ -372,7 +429,7 @@ export const chatWithPdf = async (req, res) => {
       .where(eq(chatSessions.sessionId, sessionId))
       .returning();
 
-    logger.info("Chat message saved successfully");
+    console.log("Chat message saved successfully");
 
     return res.status(200).json({
       success: true,
@@ -382,7 +439,8 @@ export const chatWithPdf = async (req, res) => {
       message: "Chat processed successfully",
     });
   } catch (error) {
-    logger.error("Error in chatWithPdf:", error.message);
+    console.error("Error in chatWithPdf:", { message: error.message });
+    console.error("Stack:", { stack: error.stack });
     throw new ApiError(500, "Failed to process chat request");
   }
 };

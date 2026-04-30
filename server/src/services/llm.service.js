@@ -27,26 +27,63 @@ export const getEmbeddings = async (text) => {
   //console.log(embedding.data[0].embedding);
 };
 
-export const getTextResponse = async (userMsg, vectorData) => {
-  // 1. Build a chat completion request using the user question and retrieved document chunks
+export const getTextResponse = async (userMsg, vectorData, history = []) => {
+  const vectorStr =
+    vectorData && vectorData.length > 0
+      ? JSON.stringify(vectorData)
+      : "No relevant documents found";
+
+  const systemPrompt = `Based on user query you have to provide user a structured and formatted response from provide a pdf chunked data. you have to provide user page source and important data related to user query.Here is pdf vectorData: ${vectorStr}`;
+
+  const validHistory = Array.isArray(history)
+    ? history.filter((m) => m && m.role && m.content)
+    : [];
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    ...validHistory,
+    { role: "user", content: userMsg },
+  ];
+
+  const response = await openai.chat.completions.create({
+    model: "gemini-2.5-flash",
+    messages,
+  });
+
+  if (!response.choices || response.choices.length === 0) {
+    throw new Error("No response from LLM");
+  }
+
+  return (
+    response.choices[0].message.content ||
+    "I apologize, but I couldn't generate a response."
+  );
+};
+
+export const summarizeConversation = async (messages) => {
+  const conversationText = messages
+    .map(
+      (m) =>
+        `${m.role === "user" ? "User" : "AI"}: ${m.role === "user" ? m.userMsg : m.aiResponse}`,
+    )
+    .join("\n");
+
   const response = await openai.chat.completions.create({
     model: "gemini-2.5-flash",
     messages: [
       {
         role: "system",
-        content: `Based on user query you have to provide user a structured and formatted response from provide a pdf chunked data. you have to provide user page source and important data related to user query.Here is pdf vectorData: ${JSON.stringify(
-          vectorData,
-        )}`,
+        content:
+          "Summarize this conversation into a brief context (2-3 sentences) that captures the key topics and questions discussed. Keep it concise.",
       },
       {
         role: "user",
-        content: userMsg,
+        content: conversationText,
       },
     ],
   });
 
-  // 2. Return only the assistant's answer text to the controller
-  return response.choices[0].message.content;
+  return response.choices[0].message.content.trim();
 };
 
 export const generateChatTitle = async (userMsg) => {

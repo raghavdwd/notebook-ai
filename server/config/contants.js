@@ -8,4 +8,5 @@ export const CHROMADB_API_KEY = process.env.CHROMADB_API_KEY;
 export const JWT_SECRET = process.env.MY_JWT_SECRET;
 export const CLIENT_APP_URL =
   process.env.CLIENT_APP_URL || "http://localhost:5173";
+export const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 //console.log(JWT_SECRET);

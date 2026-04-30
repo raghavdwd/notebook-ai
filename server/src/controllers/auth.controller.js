@@ -1,8 +1,50 @@
 import bcrypt from "bcrypt";
-import { createJwtToken } from "../utils/jwtMaker.js";
+import jwt from "jsonwebtoken";
+import { createJwtToken, createAccessToken } from "../utils/jwtMaker.js";
 import { db } from "../database/postgres.db.js";
 import { userData } from "../database/schema.js";
 import { eq } from "drizzle-orm";
+
+const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret-key";
+
+export const handleRefreshToken = async (req, res) => {
+  const refreshToken = req.cookies.refreshToken;
+
+  if (!refreshToken) {
+    return res.status(401).json({ success: false, error: "No refresh token" });
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET);
+
+    const user = await db
+      .select()
+      .from(userData)
+      .where(eq(userData.userId, decoded.userId));
+
+    if (user.length === 0) {
+      return res.status(401).json({ success: false, error: "User not found" });
+    }
+
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+      createJwtToken(user[0].email, user[0].userId);
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: decoded.rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: { accessToken: newAccessToken },
+    });
+  } catch (error) {
+    res.clearCookie("refreshToken");
+    return res.status(401).json({ success: false, error: "Invalid or expired refresh token" });
+  }
+};
 
 /**
  * Controller for handling authentication-related operations.
@@ -58,7 +100,7 @@ export const handleUserSignUp = async (req, res) => {
 
 export const handleUserLogin = async (req, res) => {
   // 1. Extract login credentials from the request body
-  const { email, password } = req.body;
+  const { email, password, rememberMe } = req.body;
   if (!email || !password) {
     return res
       .status(400)
@@ -80,14 +122,18 @@ export const handleUserLogin = async (req, res) => {
   }
 
   // 4. Create access and refresh tokens for the authenticated user
-  const { accessToken, refreshToken } = createJwtToken(email, user[0].userId);
+  const { accessToken, refreshToken } = createJwtToken(email, user[0].userId, rememberMe);
 
   // 5. Store the refresh token in an HTTP-only cookie
+  const maxAge = rememberMe
+    ? 30 * 24 * 60 * 60 * 1000
+    : 7 * 24 * 60 * 60 * 1000;
+
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure: true,
     sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge,
   });
 
   // 6. Return the access token and basic user profile to the client

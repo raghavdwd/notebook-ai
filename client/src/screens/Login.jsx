@@ -1,12 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Brain, Eye, EyeOff, ArrowLeft, Check, Lock, Mail } from "lucide-react";
 import Nav from "../components/Nav";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { axiosInstance } from "../utils/axiosInstance";
 import { notify } from "../utils/notify";
 import "react-toastify/dist/ReactToastify.css";
 import { ToastContainer } from "react-toastify";
-import { setToken } from "../utils/sessionStorage";
+import { setToken, getToken } from "../utils/sessionStorage";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -18,6 +18,13 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("USER_SESS_TOKEN");
+    if (token) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -47,7 +54,7 @@ export default function Login() {
       setIsLoading(false);
       console.error("Login error:", error);
       const errorMsg =
-        error.response?.data?.error || "❌ Something went wrong!";
+        error.response?.data?.error || " Something went wrong!";
       notify(errorMsg, "error");
     } finally {
       setIsLoading(false);
@@ -65,13 +72,13 @@ export default function Login() {
           <div className="max-w-md w-full space-y-8">
             {/* Back Link */}
             <div>
-              <a
-                href="#"
+              <Link
+                to="/"
                 className="flex items-center text-gray-600 hover:text-black transition-colors"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to home
-              </a>
+              </Link>
             </div>
 
             {/* Header */}

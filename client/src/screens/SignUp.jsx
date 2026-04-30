@@ -1,9 +1,9 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { Brain, Eye, EyeOff, ArrowLeft, Check } from "lucide-react";
 import Nav from "../components/Nav";
 import { axiosInstance } from "../utils/axiosInstance.js";
-import { removeToken, setToken } from "../utils/sessionStorage.js";
+import { removeToken, setToken, getToken } from "../utils/sessionStorage.js";
 import { notify } from "../utils/notify.js";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -22,6 +22,13 @@ export default function Signup() {
   const [passwordStrength, setPasswordStrength] = useState(0);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("USER_SESS_TOKEN");
+    if (token) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -67,7 +74,7 @@ export default function Signup() {
 
         // Agar backend ka error message ho to dikha do
         const errorMsg =
-          error.response?.data?.error || "❌ Something went wrong!";
+          error.response?.data?.error || " Something went wrong!";
         notify(errorMsg, "error");
       });
   };
@@ -95,13 +102,13 @@ export default function Signup() {
           <div className="max-w-md w-full space-y-8">
             {/* Back Link */}
             <div>
-              <a
-                href="#"
+              <Link
+                to="/"
                 className="flex items-center text-gray-600 hover:text-black transition-colors"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to home
-              </a>
+              </Link>
             </div>
 
             {/* Header */}
