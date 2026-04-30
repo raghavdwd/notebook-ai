@@ -36,6 +36,10 @@ app.use("/api/v1/chat", verifyJwtToken, chatRoute);
 app.use("/api/v1/users", verifyJwtToken, userRoute);
 app.use("/api/v1/upload", verifyJwtToken, uploadRoute);
 
+app.get("/api/v1/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 app.get("/", (req, res) => {
   res.send("Welcome to the Notebook API");
 });
