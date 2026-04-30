@@ -10,6 +10,7 @@ import chatRoute from "./routes/chat.route.js";
 import userRoute from "./routes/user.route.js";
 import cookieParser from "cookie-parser";
 import { verifyJwtToken } from "./middlewares/auth.middleware.js";
+import { CLIENT_APP_URL } from "../config/contants.js";
 
 export const app = express();
 
@@ -26,7 +27,11 @@ app.use(
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 app.use(compression({ level: -1 }));
 app.use(morgan("dev"));
-app.use(cors());
+app.use(
+  cors({
+    origin: CLIENT_APP_URL,
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
