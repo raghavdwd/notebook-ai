@@ -28,11 +28,10 @@ export const getEmbeddings = async (text) => {
 };
 
 export const getTextResponse = async (userMsg, vectorData, history = []) => {
-  const vectorStr =
-    vectorData && vectorData.length > 0
-      ? JSON.stringify(vectorData)
-      : "No relevant documents found";
-
+  const vectorStr = vectorData
+    ? JSON.stringify(vectorData)
+    : "No relevant documents found";
+  console.log("Vector data sent to LLM:", vectorStr); // Log the vector data for debugging
   const systemPrompt = `You are a precise document assistant. Answer the user's question using ONLY the provided PDF chunks below.
     ## Context (PDF Chunks)
     ${vectorStr}
@@ -49,7 +48,7 @@ export const getTextResponse = async (userMsg, vectorData, history = []) => {
     - **Sources**: [Page numbers referenced]
 
     ## User Question
-    {user_query}`;
+    ${userMsg}`;
 
   const validHistory = Array.isArray(history)
     ? history.filter((m) => m && m.role && m.content)

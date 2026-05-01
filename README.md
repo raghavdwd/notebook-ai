@@ -1,42 +1,54 @@
-# Notebook LM
+# Notebook AI
 
-## Description
-
-Notebook LM is a web application for creating and managing notes. It allows users to organize their thoughts, ideas, and information in a structured and accessible way.
-
-## Features
-
-- User authentication and authorization
-- Note creation, editing, and deletion
-- Organization using SQlite database
-- File upload functionality
+AI-powered notebook with PDF export and chat history.
 
 ## Tech Stack
 
-- Frontend: React, JavaScript, HTML, CSS
-- Backend: Node.js, Express
-- Database: SQLite, ChromaDB
-- Authentication: JWT
-- Other: Docker
+- **Frontend**: React 19, Vite, TailwindCSS 4, React Router, React Markdown
+- **Backend**: Node.js, Express, Bun
+- **Database**: SQLite (Drizzle ORM), ChromaDB (vector storage)
+- **Auth**: JWT, Bcrypt
 
-## Installation
+## Project Structure
 
-1.  Clone the repository: `git clone [repository URL]`
-2.  Install server dependencies: `cd server && npm install`
-3.  Install client dependencies: `cd client && npm install`
-4.  Configure the environment variables.
-5.  Run the application: `cd server && npm run dev` and `cd client && npm run dev`
+```
+/client     - Vite + React frontend
+/server     - Express backend
+```
 
-## Usage
+## Setup
 
-1.  Open the application in your browser.
-2.  Create an account or log in.
-3.  Start creating and managing your notes.
+```bash
+# Install dependencies
+cd server && npm install
+cd client && npm install
 
-## Deployment
+# Server env vars (server/.env)
+DATABASE_URL=./data.db
+JWT_SECRET=your-secret
+CLIENT_APP_URL=http://localhost:5173
 
-The application can be deployed using Docker. See the `Dockerfile` and `docker-compose.yml` files for more information.
+# Client env vars (client/.env)
+SERVER_APP_URL=http://localhost:3000
+```
 
-## Video Link
+## Run
 
-[Google Drive link](https://drive.google.com/file/d/1VU73cGdgLsrZwtfWHE0ihYJXJAcTOPhz/view?usp=drivesdk)
+```bash
+# Terminal 1
+cd server && npm run dev
+
+# Terminal 2
+cd client && npm run dev
+```
+
+## Build
+
+```bash
+cd client && npm run build
+```
+
+## Deploy
+
+- **Client**: Vercel (auto-deploy from git)
+- **Server**: Render Railway (set env vars)

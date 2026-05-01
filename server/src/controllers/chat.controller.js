@@ -201,7 +201,9 @@ export const attachFileToSession = async (req, res) => {
       message: "File attached to session successfully",
     });
   } catch (error) {
-    console.error("Error attaching file to session:", { message: error.message });
+    console.error("Error attaching file to session:", {
+      message: error.message,
+    });
     throw new ApiError(500, "Failed to attach file to session");
   }
 };
@@ -240,7 +242,9 @@ export const detachFileFromSession = async (req, res) => {
       message: "File detached from session successfully",
     });
   } catch (error) {
-    console.error("Error detaching file from session:", { message: error.message });
+    console.error("Error detaching file from session:", {
+      message: error.message,
+    });
     throw new ApiError(500, "Failed to detach file from session");
   }
 };
@@ -278,7 +282,9 @@ export const getSessionMessages = async (req, res) => {
       message: "Session messages fetched successfully",
     });
   } catch (error) {
-    console.error("Error fetching session messages:", { message: error.message });
+    console.error("Error fetching session messages:", {
+      message: error.message,
+    });
     throw new ApiError(500, "Failed to fetch session messages");
   }
 };
@@ -375,13 +381,15 @@ export const chatWithPdf = async (req, res) => {
     try {
       const embeddings = await getEmbeddings(userMsg);
       results = await searchVector(embeddings, req.user.userId, fileIds);
+      // console.log(`Vector search returned ${JSON.stringify(results)} results`);
     } catch (err) {
       console.error("Error in vector search:", err.message);
       console.error("fileIds:", { fileIds });
       results = [];
     }
 
-    console.log("History length:", history.length);
+    // console.log("History length:", history.length);
+    // console.log("Results length:", JSON.stringify(results));
 
     // 8. Generate an AI response using the scoped document chunks and history
     try {
@@ -390,7 +398,10 @@ export const chatWithPdf = async (req, res) => {
       console.error("Error in getTextResponse:", err.message);
       console.error("Error stack:", err.stack);
       if (err.response?.data) {
-        console.error("Error response data:", JSON.stringify(err.response.data));
+        console.error(
+          "Error response data:",
+          JSON.stringify(err.response.data),
+        );
       }
       throw err;
     }
@@ -414,7 +425,9 @@ export const chatWithPdf = async (req, res) => {
         // 11. Generate a short AI title after the first successful message
         title = await generateChatTitle(userMsg);
       } catch (error) {
-        console.error("Error generating chat title:", { message: error.message });
+        console.error("Error generating chat title:", {
+          message: error.message,
+        });
         title = userMsg.slice(0, 40);
       }
     }
