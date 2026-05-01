@@ -1,11 +1,34 @@
 import { db } from "../database/postgres.db.js";
-import { chats } from "../database/schema.js";
+import { chats, userData } from "../database/schema.js";
 import { eq, asc } from "drizzle-orm";
 
-/**
- * Controller for handling user-specific data reads.
- * This currently includes fetching chat history for the authenticated user.
- */
+export const getUserProfile = async (req, res) => {
+  try {
+    const user = await db
+      .select()
+      .from(userData)
+      .where(eq(userData.userId, req.user.userId));
+
+    if (user.length === 0) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    const isVerified = !user[0].verificationToken && !user[0].verificationExpiry;
+
+    return res.status(200).json({
+      success: true,
+      user: {
+        userId: user[0].userId,
+        name: user[0].name,
+        email: user[0].email,
+        isEmailVerified: isVerified,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    return res.status(500).json({ success: false, error: "Failed to fetch user profile" });
+  }
+};
 
 export const getChatHistory = async (req, res) => {
   // 1. Read the authenticated user ID from the JWT middleware

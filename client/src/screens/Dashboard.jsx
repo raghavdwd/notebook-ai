@@ -16,6 +16,7 @@ import {
   Upload,
   User,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
@@ -23,6 +24,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { axiosInstance } from "../utils/axiosInstance";
 import { notify } from "../utils/notify";
 import { removeToken } from "../utils/sessionStorage";
+import { generateChatPDF } from "../utils/pdfGenerator";
 
 const TypingAnimation = () => (
   <div className="flex items-center space-x-1 p-4">
@@ -49,10 +51,12 @@ export default function Dashboard() {
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [userData, setUserData] = useState(null);
+  const [isEmailVerified, setIsEmailVerified] = useState(true);
   const [chatMessages, setChatMessages] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [isLoadingChat, setIsLoadingChat] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
   const chatEndRef = useRef(null);
   const navigate = useNavigate();
 
@@ -79,6 +83,21 @@ export default function Dashboard() {
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleDownloadPDF = () => {
+    if (chatMessages.length === 0) {
+      notify("No messages to download.", "info");
+      return;
+    }
+    setIsDownloading(true);
+    try {
+      generateChatPDF(activeSession, chatMessages);
+    } catch (err) {
+      notify("Failed to generate PDF.", "error");
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const refreshFiles = () =>
@@ -181,6 +200,7 @@ export default function Dashboard() {
     axiosInstance.get("/users/me").then((response) => {
       if (response.data.success) {
         setUserData(response.data.user.email);
+        setIsEmailVerified(response.data.user.isEmailVerified);
       } else {
         notify(response.data.message || "Failed to fetch user data!", "error");
       }
@@ -262,6 +282,11 @@ export default function Dashboard() {
     e.preventDefault();
     if (!message.trim() || isTyping || !activeSessionId) return;
 
+    if (!isEmailVerified) {
+      notify("Please verify your email first!", "error");
+      return;
+    }
+
     if (sessionFiles.length === 0) {
       notify("Attach at least one document to this chat first.", "error");
       return;
@@ -317,10 +342,15 @@ export default function Dashboard() {
       });
   };
 
-  const handleFileUpload = (event) => {
+const handleFileUpload = (event) => {
     const file = event.target.files[0];
     event.target.value = "";
     if (!file) return;
+
+    if (!isEmailVerified) {
+      notify("Please verify your email first!", "error");
+      return;
+    }
 
     setIsUploading(true);
 
@@ -391,6 +421,33 @@ export default function Dashboard() {
   return (
     <div className="h-screen bg-white text-black flex flex-col">
       <ToastContainer />
+      {!isEmailVerified && (
+        <div className="bg-yellow-100 border-b-2 border-yellow-400 p-4">
+          <div className="flex items-center justify-between max-w-6xl mx-auto">
+            <div className="flex items-center space-x-3">
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              <span className="text-yellow-800 font-semibold">
+                Please verify your email to upload documents and chat.
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                axiosInstance
+                  .post("/auth/resend-verification", { email: userData })
+                  .then(() => {
+                    notify("Verification email sent!", "success");
+                  })
+                  .catch(() => {
+                    notify("Failed to resend verification email!", "error");
+                  });
+              }}
+              className="px-4 py-1 bg-yellow-500 text-white font-semibold hover:bg-yellow-600 transition-colors"
+            >
+              Resend Link
+            </button>
+          </div>
+        </div>
+      )}
       <nav className="border-b-2 border-black px-6 py-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-3">
@@ -535,6 +592,19 @@ export default function Dashboard() {
                   {sessionFiles.length === 1 ? "" : "s"}
                 </p>
               </div>
+              <button
+                onClick={handleDownloadPDF}
+                disabled={isDownloading || chatMessages.length === 0}
+                className="flex items-center space-x-2 px-3 py-2 border-2 border-black hover:bg-black hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Download chat as PDF"
+              >
+                {isDownloading ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                <span className="text-sm">PDF</span>
+              </button>
             </div>
           </div>
 

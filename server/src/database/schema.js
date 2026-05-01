@@ -13,6 +13,8 @@ export const userData = pgTable("user_data", {
   name: text("name").notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   password: text("password").notNull(),
+  verificationToken: text("verification_token"),
+  verificationExpiry: timestamp("verification_expiry"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

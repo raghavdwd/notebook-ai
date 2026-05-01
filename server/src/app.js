@@ -19,7 +19,7 @@ app.use(helmet());
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+    max: 500, // Limit each IP to 500 requests per `window` (here, per 15 minutes)
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   }),
@@ -29,7 +29,8 @@ app.use(compression({ level: -1 }));
 app.use(morgan("dev"));
 app.use(
   cors({
-    origin: CLIENT_APP_URL,
+    origin: [CLIENT_APP_URL, "http://localhost:5173", "http://localhost:3001"],
+    credentials: true,
   }),
 );
 app.use(express.json());

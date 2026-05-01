@@ -1,9 +1,11 @@
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { createJwtToken, createAccessToken } from "../utils/jwtMaker.js";
 import { db } from "../database/postgres.db.js";
 import { userData } from "../database/schema.js";
 import { eq } from "drizzle-orm";
+import { sendVerificationEmail } from "../services/email.service.js";
 
 const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret-key";
 
@@ -74,27 +76,34 @@ export const handleUserSignUp = async (req, res) => {
   // 3. Hash the password before saving it in the database
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // 4. Create the user record and return the generated user ID
+  // 4. Generate verification token (valid for 15 minutes)
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+  const verificationExpiry = new Date(Date.now() + 15 * 60 * 1000);
+
+  // 5. Create the user record as unverified
   const [newUser] = await db
     .insert(userData)
-    .values({ name, email, password: hashedPassword })
+    .values({
+      name,
+      email,
+      password: hashedPassword,
+      verificationToken,
+      verificationExpiry,
+    })
     .returning({ userId: userData.userId });
 
-  const { accessToken, refreshToken } = createJwtToken(email, newUser.userId);
+  // 6. Send verification email
+  try {
+    await sendVerificationEmail(email, verificationToken);
+  } catch (error) {
+    console.error("Failed to send verification email:", error);
+    return res.status(500).json({ success: false, error: "Failed to send verification email" });
+  }
 
-  // 5. Store the refresh token in an HTTP-only cookie
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
-
-  // 6. Return the access token to the client
+  // 7. Return success - user must verify email before login
   return res.status(201).json({
     success: true,
-    data: { accessToken },
-    message: "SignUp successful",
+    message: "Verification email sent. Please verify your email to complete signup.",
   });
 };
 
@@ -119,6 +128,13 @@ export const handleUserLogin = async (req, res) => {
     return res
       .status(401)
       .json({ success: false, error: "Invalid email or password" });
+  }
+
+  // 4. Check if email is verified
+  if (user[0].verificationToken && user[0].verificationExpiry) {
+    return res
+      .status(403)
+      .json({ success: false, error: "Email not verified. Please verify your email first." });
   }
 
   // 4. Create access and refresh tokens for the authenticated user
@@ -157,4 +173,94 @@ export const handleUserLogout = async (req, res) => {
 
   // 2. Confirm logout to the client
   return res.status(200).json({ success: true, message: "Logout successful" });
+};
+
+export const handleVerifyEmail = async (req, res) => {
+  const { token } = req.query;
+
+  if (!token) {
+    return res.status(400).json({ success: false, error: "Verification token required" });
+  }
+
+  // 1. Find user with this verification token
+  const user = await db
+    .select()
+    .from(userData)
+    .where(eq(userData.verificationToken, token));
+
+  if (user.length === 0) {
+    return res.status(400).json({ success: false, error: "Invalid verification token" });
+  }
+
+  // 2. Check if token has expired
+  if (new Date() > new Date(user[0].verificationExpiry)) {
+    return res.status(400).json({ success: false, error: "Verification token has expired" });
+  }
+
+  // 3. Clear verification fields to mark as verified
+  await db
+    .update(userData)
+    .set({ verificationToken: null, verificationExpiry: null })
+    .where(eq(userData.userId, user[0].userId));
+
+  // 4. Generate tokens and log them in
+  const { accessToken, refreshToken } = createJwtToken(user[0].email, user[0].userId);
+
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  return res.status(200).json({
+    success: true,
+    data: { accessToken },
+    message: "Email verified successfully",
+  });
+};
+
+export const handleResendVerification = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ success: false, error: "Email is required" });
+  }
+
+  // 1. Find unverified user with this email
+  const user = await db
+    .select()
+    .from(userData)
+    .where(eq(userData.email, email));
+
+  if (user.length === 0) {
+    return res.status(404).json({ success: false, error: "User not found" });
+  }
+
+  // 2. Check if already verified
+  if (!user[0].verificationToken || !user[0].verificationExpiry) {
+    return res.status(400).json({ success: false, error: "Email already verified" });
+  }
+
+  // 3. Generate new verification token (valid for 15 minutes)
+  const verificationToken = crypto.randomBytes(32).toString("hex");
+  const verificationExpiry = new Date(Date.now() + 15 * 60 * 1000);
+
+  await db
+    .update(userData)
+    .set({ verificationToken, verificationExpiry })
+    .where(eq(userData.userId, user[0].userId));
+
+  // 4. Send verification email
+  try {
+    await sendVerificationEmail(email, verificationToken);
+  } catch (error) {
+    console.error("Failed to send verification email:", error);
+    return res.status(500).json({ success: false, error: "Failed to send verification email" });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Verification email sent. Please check your inbox.",
+  });
 };

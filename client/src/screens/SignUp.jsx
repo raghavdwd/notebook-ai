@@ -20,6 +20,7 @@ export default function Signup() {
     agreeToTerms: false,
   });
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [emailSent, setEmailSent] = useState(false);
 
   const navigate = useNavigate();
 
@@ -60,10 +61,8 @@ export default function Signup() {
       })
       .then(({ data }) => {
         if (data.success) {
-          const token = data.data?.accessToken;
-          setToken(token);
-          notify("✅ Signup successful!", "success");
-          navigate("/dashboard");
+          setEmailSent(true);
+          notify(data.message || "Verification email sent!", "success");
         } else {
           notify(data.message || "Signup failed!", "error");
           removeToken();
@@ -113,16 +112,39 @@ export default function Signup() {
 
             {/* Header */}
             <div>
-              <h2 className="text-3xl font-bold">Create your account</h2>
-              <p className="mt-2 text-gray-600">
-                Already have an account?{" "}
-                <a href="#login" className="font-semibold hover:underline">
-                  Sign in here
-                </a>
-              </p>
+              <h2 className="text-3xl font-bold">
+                {emailSent ? "Check your email" : "Create your account"}
+              </h2>
+              {emailSent ? (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-green-800 font-medium">
+                    Verification email sent!
+                  </p>
+                  <p className="text-green-600 text-sm mt-1">
+                    We've sent a verification link to{" "}
+                    <span className="font-semibold">{formData.email}</span>.
+                    Please check your inbox and click the link to verify your
+                    email.
+                  </p>
+                  <button
+                    onClick={() => navigate("/login")}
+                    className="mt-4 w-full bg-green-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors"
+                  >
+                    Go to Login
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-2 text-gray-600">
+                  Already have an account?{" "}
+                  <a href="#login" className="font-semibold hover:underline">
+                    Sign in here
+                  </a>
+                </p>
+              )}
             </div>
 
             {/* Form */}
+            {!emailSent && (
             <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -314,6 +336,7 @@ export default function Signup() {
                 </button>
               </div>
             </form>
+            )}
 
             {/* Social Login Options */}
             {/* <div className="mt-6">
