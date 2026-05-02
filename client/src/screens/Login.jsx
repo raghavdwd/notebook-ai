@@ -92,6 +92,17 @@ export default function Login() {
                 </a>
               </p>
             </div>
+            {/* {Alert} */}
+            <div className="mt-3 ">
+              Please use the following test credentials to log in:
+              <div className="mt-2 mb-1 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-sm text-yellow-700">
+                <p>Email: <code>dwivediji425@gmail.com</code></p>
+                <p>Password: <code>123456</code></p>
+              </div>
+              <div className="mt-2 mb-1 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-sm text-yellow-900">
+                <p>PS: We dont have subcription of email service yet, so we are not able to send email to users. We will implement it in future, but for now you can use above credentials to login and test the app.</p>
+              </div>
+            </div>
 
             {/* Form */}
             <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
