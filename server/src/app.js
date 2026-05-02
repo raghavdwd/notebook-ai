@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import helmet from "helmet";
+// import helmet from "helmet";
 import compression from "compression";
 import authRoute from "./routes/auth.route.js";
 import uploadRoute from "./routes/upload.route.js";
@@ -15,10 +15,10 @@ import { limiter } from "./utils/rate-limit.js";
 export const app = express();
 
 //endpoint logs
-app.set("trust proxy", 1);
-app.use(helmet());
+// app.set("trust proxy", 1);
+// app.use(helmet());
 app.use(limiter);
-app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
+// app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 app.use(compression({ level: -1 }));
 app.use(morgan("dev"));
 app.use(
