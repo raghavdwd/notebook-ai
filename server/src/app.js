@@ -10,6 +10,7 @@ import userRoute from "./routes/user.route.js";
 import cookieParser from "cookie-parser";
 import { verifyJwtToken } from "./middlewares/auth.middleware.js";
 import { CLIENT_APP_URL } from "../config/contants.js";
+import { limiter } from "./utils/rate-limit.js";
 
 export const app = express();
 
