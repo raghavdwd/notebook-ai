@@ -7,7 +7,7 @@ import { userData } from "../database/schema.js";
 import { eq } from "drizzle-orm";
 import { sendVerificationEmail } from "../services/email.service.js";
 
-const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret-key";
+const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_SECRET;
 
 export const handleRefreshToken = async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
@@ -33,9 +33,11 @@ export const handleRefreshToken = async (req, res) => {
 
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: "strict",
-      maxAge: decoded.rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: decoded.rememberMe
+        ? 30 * 24 * 60 * 60 * 1000
+        : 7 * 24 * 60 * 60 * 1000,
     });
 
     return res.status(200).json({
@@ -44,7 +46,9 @@ export const handleRefreshToken = async (req, res) => {
     });
   } catch (error) {
     res.clearCookie("refreshToken");
-    return res.status(401).json({ success: false, error: "Invalid or expired refresh token" });
+    return res
+      .status(401)
+      .json({ success: false, error: "Invalid or expired refresh token" });
   }
 };
 
@@ -97,13 +101,16 @@ export const handleUserSignUp = async (req, res) => {
     await sendVerificationEmail(email, verificationToken);
   } catch (error) {
     console.error("Failed to send verification email:", error);
-    return res.status(500).json({ success: false, error: "Failed to send verification email" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to send verification email" });
   }
 
   // 7. Return success - user must verify email before login
   return res.status(201).json({
     success: true,
-    message: "Verification email sent. Please verify your email to complete signup.",
+    message:
+      "Verification email sent. Please verify your email to complete signup.",
   });
 };
 
@@ -117,7 +124,10 @@ export const handleUserLogin = async (req, res) => {
   }
 
   // 2. Fetch the user record for the provided email
-  const user = await db.select().from(userData).where(eq(userData.email, email));
+  const user = await db
+    .select()
+    .from(userData)
+    .where(eq(userData.email, email));
   if (user.length === 0) {
     return res.status(404).json({ success: false, error: "User not found" });
   }
@@ -132,13 +142,18 @@ export const handleUserLogin = async (req, res) => {
 
   // 4. Check if email is verified
   if (user[0].verificationToken && user[0].verificationExpiry) {
-    return res
-      .status(403)
-      .json({ success: false, error: "Email not verified. Please verify your email first." });
+    return res.status(403).json({
+      success: false,
+      error: "Email not verified. Please verify your email first.",
+    });
   }
 
   // 4. Create access and refresh tokens for the authenticated user
-  const { accessToken, refreshToken } = createJwtToken(email, user[0].userId, rememberMe);
+  const { accessToken, refreshToken } = createJwtToken(
+    email,
+    user[0].userId,
+    rememberMe,
+  );
 
   // 5. Store the refresh token in an HTTP-only cookie
   const maxAge = rememberMe
@@ -147,8 +162,8 @@ export const handleUserLogin = async (req, res) => {
 
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
-    secure: true,
-    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     maxAge,
   });
 
@@ -179,7 +194,9 @@ export const handleVerifyEmail = async (req, res) => {
   const { token } = req.query;
 
   if (!token) {
-    return res.status(400).json({ success: false, error: "Verification token required" });
+    return res
+      .status(400)
+      .json({ success: false, error: "Verification token required" });
   }
 
   // 1. Find user with this verification token
@@ -189,12 +206,16 @@ export const handleVerifyEmail = async (req, res) => {
     .where(eq(userData.verificationToken, token));
 
   if (user.length === 0) {
-    return res.status(400).json({ success: false, error: "Invalid verification token" });
+    return res
+      .status(400)
+      .json({ success: false, error: "Invalid verification token" });
   }
 
   // 2. Check if token has expired
   if (new Date() > new Date(user[0].verificationExpiry)) {
-    return res.status(400).json({ success: false, error: "Verification token has expired" });
+    return res
+      .status(400)
+      .json({ success: false, error: "Verification token has expired" });
   }
 
   // 3. Clear verification fields to mark as verified
@@ -204,7 +225,10 @@ export const handleVerifyEmail = async (req, res) => {
     .where(eq(userData.userId, user[0].userId));
 
   // 4. Generate tokens and log them in
-  const { accessToken, refreshToken } = createJwtToken(user[0].email, user[0].userId);
+  const { accessToken, refreshToken } = createJwtToken(
+    user[0].email,
+    user[0].userId,
+  );
 
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
@@ -239,7 +263,9 @@ export const handleResendVerification = async (req, res) => {
 
   // 2. Check if already verified
   if (!user[0].verificationToken || !user[0].verificationExpiry) {
-    return res.status(400).json({ success: false, error: "Email already verified" });
+    return res
+      .status(400)
+      .json({ success: false, error: "Email already verified" });
   }
 
   // 3. Generate new verification token (valid for 15 minutes)
@@ -256,7 +282,9 @@ export const handleResendVerification = async (req, res) => {
     await sendVerificationEmail(email, verificationToken);
   } catch (error) {
     console.error("Failed to send verification email:", error);
-    return res.status(500).json({ success: false, error: "Failed to send verification email" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to send verification email" });
   }
 
   return res.status(200).json({

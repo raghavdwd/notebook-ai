@@ -3,6 +3,7 @@ import { BACKEND_API_URL } from "../config";
 
 export const axiosInstance = axios.create({
   baseURL: `${BACKEND_API_URL}/api/v1`,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
@@ -30,7 +31,7 @@ axiosInstance.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 axiosInstance.interceptors.response.use(
@@ -54,7 +55,11 @@ axiosInstance.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const response = await axios.post(`${BACKEND_API_URL}/api/v1/auth/refresh`);
+        const response = await axios.post(
+          `${BACKEND_API_URL}/api/v1/auth/refresh`,
+          {},
+          { withCredentials: true },
+        );
 
         if (response.data.success) {
           const newToken = response.data.data.accessToken;
@@ -74,5 +79,5 @@ axiosInstance.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
