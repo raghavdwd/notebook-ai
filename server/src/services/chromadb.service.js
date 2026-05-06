@@ -1,5 +1,4 @@
-import { collection } from "../database/chroma.db.js";
-import { v4 as uuid } from "uuid";
+import { getChromaCollection } from "../database/chroma.db.js";
 
 /**
  * Service for storing, searching, and deleting vectors in ChromaDB.
@@ -66,6 +65,8 @@ export const addVector = async ({
     flatMetadata[key] = normalizeMetadata(value);
   }
   try {
+    const collection = await getChromaCollection();
+
     // 3. Store the document text, vector, and search metadata in ChromaDB
     const res = await collection.add({
       ids: [id],
@@ -96,6 +97,8 @@ export const searchVector = async (embedding, userId, fileIds, n_results = 4) =>
   }
 
   // 2. Search only vectors owned by the user and attached to the active session
+  const collection = await getChromaCollection();
+
   return await collection.query({
     queryEmbeddings: [embedding],
     n_results,
@@ -111,6 +114,8 @@ export const deleteVector = async (id) => {
     throw new Error("Vector ID is required for deletion");
   }
   try {
+    const collection = await getChromaCollection();
+
     // 2. Delete the vector from ChromaDB by ID
     const res = await collection.delete({
       ids: [id],

@@ -46,6 +46,9 @@ AI-powered notebook for chatting with your PDFs, keeping session history, and ex
 | `JWT_REFRESH_SECRET` | JWT refresh token secret |
 | `GEMINI_API_KEY` | Gemini API key |
 | `CHROMADB_API_KEY` | ChromaDB Cloud API key |
+| `CHROMADB_TENANT` | ChromaDB Cloud tenant ID |
+| `CHROMADB_DATABASE` | ChromaDB Cloud database name |
+| `CHROMADB_COLLECTION` | ChromaDB collection name |
 | `CLIENT_APP_URL` | Frontend URL for CORS (default: `http://localhost:5173`) |
 | `SERVER_APP_URL` | Backend base URL used in verification links (default: `http://localhost:3000`) |
 | `MAILGUN_API_KEY` | Mailgun API key |
