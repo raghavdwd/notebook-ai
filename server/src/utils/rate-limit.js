@@ -10,7 +10,7 @@ export const limiter = rateLimit({
 // Stricter rate limiter specifically for auth endpoints (login, signup, resend-verification)
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // Limit each IP to 20 auth requests per 15 minutes
+  max: 30, // Limit each IP to 30 auth requests per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: {
