@@ -1,5 +1,5 @@
 import * as dotenv from "dotenv";
-dotenv.config({ path: "./.env.local" });
+dotenv.config({ path: "./.env" });
 import http from "http";
 import { app } from "./src/app.js";
 const server = http.createServer(app);

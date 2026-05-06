@@ -1,13 +1,14 @@
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { createJwtToken, createAccessToken } from "../utils/jwtMaker.js";
+import { createJwtToken } from "../utils/jwtMaker.js";
 import { db } from "../database/postgres.db.js";
 import { userData } from "../database/schema.js";
 import { eq } from "drizzle-orm";
 import { sendVerificationEmail } from "../services/email.service.js";
+import { JWT_REFRESH_SECRET } from "../../config/contants.js";
 
-const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_SECRET;
+const REFRESH_TOKEN_SECRET = JWT_REFRESH_SECRET;
 
 export const handleRefreshToken = async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
@@ -28,8 +29,36 @@ export const handleRefreshToken = async (req, res) => {
       return res.status(401).json({ success: false, error: "User not found" });
     }
 
+    // Check email verification on refresh
+    if (user[0].verificationToken || user[0].verificationExpiry) {
+      res.clearCookie("refreshToken");
+      return res
+        .status(403)
+        .json({ success: false, error: "Email not verified" });
+    }
+
+    // Refresh token rotation — check tokenVersion
+    if (decoded.tokenVersion !== user[0].tokenVersion) {
+      // Token has been rotated — reject this old refresh token
+      res.clearCookie("refreshToken");
+      return res
+        .status(401)
+        .json({ success: false, error: "Refresh token has been revoked" });
+    }
+
+    // Increment tokenVersion on each refresh to invalidate old tokens
+    await db
+      .update(userData)
+      .set({ tokenVersion: user[0].tokenVersion + 1 })
+      .where(eq(userData.userId, user[0].userId));
+
     const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
-      createJwtToken(user[0].email, user[0].userId);
+      createJwtToken(
+        user[0].email,
+        user[0].userId,
+        decoded.rememberMe,
+        user[0].tokenVersion + 1,
+      );
 
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
@@ -51,7 +80,6 @@ export const handleRefreshToken = async (req, res) => {
       .json({ success: false, error: "Invalid or expired refresh token" });
   }
 };
-
 /**
  * Controller for handling authentication-related operations.
  * This includes user signup, user login, and user logout.
@@ -64,6 +92,26 @@ export const handleUserSignUp = async (req, res) => {
     return res
       .status(400)
       .json({ success: false, error: "All fields are required" });
+  }
+
+  // Server-side password validation
+  if (password.length < 8) {
+    return res.status(400).json({
+      success: false,
+      error: "Password must be at least 8 characters long",
+    });
+  }
+  if (name.trim().length < 2) {
+    return res.status(400).json({
+      success: false,
+      error: "Name must be at least 2 characters long",
+    });
+  }
+  // Basic email format check
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res
+      .status(400)
+      .json({ success: false, error: "Invalid email format" });
   }
 
   // 2. Check if a user already exists with the provided email
@@ -140,22 +188,23 @@ export const handleUserLogin = async (req, res) => {
       .json({ success: false, error: "Invalid email or password" });
   }
 
-  // 4. Check if email is verified (temporarily disabled due to email service issues)
-  // if (user[0].verificationToken && user[0].verificationExpiry) {
-  //   return res.status(403).json({
-  //     success: false,
-  //     error: "Email not verified. Please verify your email first.",
-  //   });
-  // }
+  // 4. Check if email is verified
+  if (user[0].verificationToken || user[0].verificationExpiry) {
+    return res.status(403).json({
+      success: false,
+      error: "Email not verified. Please verify your email first.",
+    });
+  }
 
-  // 4. Create access and refresh tokens for the authenticated user
+  // 5. Create access and refresh tokens for the authenticated user
   const { accessToken, refreshToken } = createJwtToken(
     email,
     user[0].userId,
     rememberMe,
+    user[0].tokenVersion,
   );
 
-  // 5. Store the refresh token in an HTTP-only cookie
+  // 6. Store the refresh token in an HTTP-only cookie
   const maxAge = rememberMe
     ? 30 * 24 * 60 * 60 * 1000
     : 7 * 24 * 60 * 60 * 1000;
@@ -167,7 +216,7 @@ export const handleUserLogin = async (req, res) => {
     maxAge,
   });
 
-  // 6. Return the access token and basic user profile to the client
+  // 7. Return the access token and basic user profile to the client
   return res.status(200).json({
     success: true,
     data: {
@@ -228,13 +277,16 @@ export const handleVerifyEmail = async (req, res) => {
   const { accessToken, refreshToken } = createJwtToken(
     user[0].email,
     user[0].userId,
+    false,
+    user[0].tokenVersion,
   );
 
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
-    secure: true,
-    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: "/",
   });
 
   return res.status(200).json({

@@ -15,6 +15,7 @@ export const userData = pgTable("user_data", {
   password: text("password").notNull(),
   verificationToken: text("verification_token"),
   verificationExpiry: timestamp("verification_expiry"),
+  tokenVersion: integer("token_version").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

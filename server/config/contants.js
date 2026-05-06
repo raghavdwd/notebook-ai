@@ -9,6 +9,7 @@ export const CHROMADB_TENANT = process.env.CHROMADB_TENANT;
 export const CHROMADB_DATABASE = process.env.CHROMADB_DATABASE;
 export const CHROMADB_COLLECTION = process.env.CHROMADB_COLLECTION;
 export const JWT_SECRET = process.env.MY_JWT_SECRET;
+export const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 export const CLIENT_APP_URL = process.env.CLIENT_APP_URL;
 export const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 export const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
