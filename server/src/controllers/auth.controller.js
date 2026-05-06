@@ -140,13 +140,13 @@ export const handleUserLogin = async (req, res) => {
       .json({ success: false, error: "Invalid email or password" });
   }
 
-  // 4. Check if email is verified
-  if (user[0].verificationToken && user[0].verificationExpiry) {
-    return res.status(403).json({
-      success: false,
-      error: "Email not verified. Please verify your email first.",
-    });
-  }
+  // 4. Check if email is verified (temporarily disabled due to email service issues)
+  // if (user[0].verificationToken && user[0].verificationExpiry) {
+  //   return res.status(403).json({
+  //     success: false,
+  //     error: "Email not verified. Please verify your email first.",
+  //   });
+  // }
 
   // 4. Create access and refresh tokens for the authenticated user
   const { accessToken, refreshToken } = createJwtToken(

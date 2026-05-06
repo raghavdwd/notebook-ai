@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 
-config({ path: "./.env" });
+config({ path: "./.env", quiet: true });
 
 export const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 export const GEMINI_EMBEDDINGS_MODEL = "gemini-embedding-001";
