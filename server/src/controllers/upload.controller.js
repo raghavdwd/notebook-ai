@@ -139,6 +139,7 @@ export const getUploadedFiles = async (req, res) => {
       .select({
         fileId: files.fileId,
         filePath: files.filePath,
+        sourceType: files.sourceType,
         uploadedAt: files.uploadedAt,
       })
       .from(files)

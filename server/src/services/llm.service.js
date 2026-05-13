@@ -27,25 +27,42 @@ export const getEmbeddings = async (text) => {
   //console.log(embedding.data[0].embedding);
 };
 
-export const getTextResponse = async (userMsg, vectorData, history = []) => {
+export const getTextResponse = async (userMsg, vectorData, history = [], sourceType = "pdf") => {
   const vectorStr = vectorData
     ? JSON.stringify(vectorData)
     : "No relevant documents found";
-  console.log("Vector data sent to LLM:", vectorStr); // Log the vector data for debugging
-  const systemPrompt = `You are a precise document assistant. Answer the user's question using ONLY the provided PDF chunks below.
-    ## Context (PDF Chunks)
+  console.log("Vector data sent to LLM:", vectorStr);
+
+  const citationFormat = sourceType === "youtube"
+    ? '**Cite sources** for every key fact using [View at MM:SS](video_url) format — these are clickable links that jump to the exact moment in the video'
+    : sourceType === "mixed"
+    ? '**Cite sources** using [Page X] for PDF chunks or [View at MM:SS](video_url) for video chunks, based on the metadata in each chunk'
+    : '**Cite sources** for every key fact using [Page X] format';
+
+  const formatInstructions = sourceType === "youtube"
+    ? `- **Answer**: [Direct response with inline video timestamp citations like [View at 3:45](https://youtu.be/ID?t=225)]
+- **Key Details**: [Bullet points of important extracted data]
+- **Sources**: [Timestamps referenced]`
+    : sourceType === "mixed"
+    ? `- **Answer**: [Direct response with appropriate inline citations]
+- **Key Details**: [Bullet points of important extracted data]
+- **Sources**: [Pages / Timestamps referenced]`
+    : `- **Answer**: [Direct response with inline citations]
+- **Key Details**: [Bullet points of important extracted data]
+- **Sources**: [Page numbers referenced]`;
+
+  const systemPrompt = `You are a precise document assistant. Answer the user's question using ONLY the provided chunks below.
+    ## Context (Chunks)
     ${vectorStr}
 
     ## Instructions
     1. **Answer directly** using only the information in the chunks above
-    2. **Cite sources** for every key fact using [Page X] format
-    3. If the answer spans multiple pages, synthesize clearly
+    2. ${citationFormat}
+    3. If the answer spans multiple chunks, synthesize clearly
     4. If the chunks don't contain the answer, say: "The provided document chunks do not contain sufficient information to answer this."
     5. Keep responses concise unless the user asks for detail
     ## Output Format
-    - **Answer**: [Direct response with inline citations]
-    - **Key Details**: [Bullet points of important extracted data]
-    - **Sources**: [Page numbers referenced]
+    ${formatInstructions}
 
     ## User Question
     ${userMsg}`;

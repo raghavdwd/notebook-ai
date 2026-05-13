@@ -140,6 +140,7 @@ export const getSessionFiles = async (req, res) => {
       .select({
         fileId: files.fileId,
         filePath: files.filePath,
+        sourceType: files.sourceType,
         uploadedAt: files.uploadedAt,
       })
       .from(chatSessionFiles)
@@ -314,9 +315,9 @@ export const chatWithPdf = async (req, res) => {
         .json({ success: false, message: "Session not found" });
     }
 
-    // 3. Fetch the document IDs attached to this session for scoped vector search
+    // 3. Fetch the documents attached to this session for scoped vector search
     const attachedFiles = await db
-      .select({ fileId: chatSessionFiles.fileId })
+      .select({ fileId: chatSessionFiles.fileId, sourceType: files.sourceType })
       .from(chatSessionFiles)
       .innerJoin(files, eq(chatSessionFiles.fileId, files.fileId))
       .where(
@@ -391,9 +392,13 @@ export const chatWithPdf = async (req, res) => {
     // console.log("History length:", history.length);
     // console.log("Results length:", JSON.stringify(results));
 
-    // 8. Generate an AI response using the scoped document chunks and history
+    // 8. Determine source type for citation formatting
+    const sourceTypes = [...new Set(attachedFiles.map((f) => f.sourceType))];
+    const sourceType = sourceTypes.length === 1 ? sourceTypes[0] : "mixed";
+
+    // 9. Generate an AI response using the scoped document chunks and history
     try {
-      var responseFromAI = await getTextResponse(userMsg, results, history);
+      var responseFromAI = await getTextResponse(userMsg, results, history, sourceType);
     } catch (err) {
       console.error("Error in getTextResponse:", err.message);
       console.error("Error stack:", err.stack);

@@ -15,9 +15,11 @@ import {
   Trash2,
   Upload,
   User,
+  Video,
   X,
   AlertTriangle,
 } from "lucide-react";
+import DocAttachModal from "../components/DocAttachModal";
 import { useNavigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -53,10 +55,11 @@ export default function Dashboard() {
   const [userData, setUserData] = useState(null);
   const [isEmailVerified, setIsEmailVerified] = useState(true);
   const [chatMessages, setChatMessages] = useState([]);
-  const [isUploading, setIsUploading] = useState(false);
+
   const [isTyping, setIsTyping] = useState(false);
   const [isLoadingChat, setIsLoadingChat] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const chatEndRef = useRef(null);
   const navigate = useNavigate();
 
@@ -342,50 +345,12 @@ export default function Dashboard() {
       });
   };
 
-const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    event.target.value = "";
-    if (!file) return;
-
+  const handleOpenModal = () => {
     if (!isEmailVerified) {
       notify("Please verify your email first!", "error");
       return;
     }
-
-    setIsUploading(true);
-
-    const formData = new FormData();
-    formData.append("pdfFile", file);
-
-    const uploadPath = activeSessionId
-      ? `/upload?sessionId=${activeSessionId}`
-      : "/upload";
-
-    axiosInstance
-      .post(uploadPath, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      })
-      .then((response) => {
-        if (!response.data.success) {
-          throw new Error(response.data.message);
-        }
-
-        return Promise.all([
-          refreshFiles(),
-          activeSessionId ? loadSessionFiles(activeSessionId) : Promise.resolve(),
-        ]);
-      })
-      .then(() => {
-        notify("File uploaded successfully!", "success");
-      })
-      .catch((error) => {
-        notify(error.message || "File upload failed!", "error");
-      })
-      .finally(() => {
-        setIsUploading(false);
-      });
+    setShowModal(true);
   };
 
   const removeFile = (fileId) => {
@@ -475,34 +440,13 @@ const handleFileUpload = (event) => {
         <div className="w-80 border-r-2 border-black bg-gray-50 flex flex-col">
           <div className="p-4 border-b border-black">
             <h2 className="text-lg font-bold mb-4">Document Library</h2>
-            <div className="relative">
-              <input
-                type="file"
-                onChange={handleFileUpload}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                accept=".pdf"
-              />
-              <button
-                className={`w-full p-3 border-2 border-black font-semibold transition-colors flex items-center justify-center ${
-                  isUploading
-                    ? "bg-gray-300 cursor-not-allowed"
-                    : "hover:bg-black hover:text-white"
-                }`}
-                disabled={isUploading}
-              >
-                {isUploading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2"></div>
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload and Attach
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              onClick={handleOpenModal}
+              className="w-full p-3 border-2 border-black font-semibold transition-colors flex items-center justify-center hover:bg-black hover:text-white"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Attach Document
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">
@@ -515,9 +459,9 @@ const handleFileUpload = (event) => {
 
               {files.map((file) => {
                 const attached = isFileAttached(file.fileId);
-                const fileName = file.filePath || file.name;
-                const fileType =
-                  fileName.split(".").pop()?.toUpperCase() || "FILE";
+                const isYoutube = file.sourceType === "youtube";
+                const fileName = isYoutube ? file.filePath : file.filePath || file.name;
+                const fileType = isYoutube ? "YT" : fileName.split(".").pop()?.toUpperCase() || "FILE";
 
                 return (
                   <div
@@ -527,12 +471,16 @@ const handleFileUpload = (event) => {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center space-x-2 mb-1">
-                          <File className="h-4 w-4 flex-shrink-0" />
+                          {isYoutube ? (
+                            <Video className="h-4 w-4 flex-shrink-0" />
+                          ) : (
+                            <File className="h-4 w-4 flex-shrink-0" />
+                          )}
                           <span
                             className="font-bold text-sm truncate"
                             title={fileName}
                           >
-                            {fileName}
+                            {isYoutube ? `YouTube (${fileName})` : fileName}
                           </span>
                         </div>
                         <div className="text-xs text-gray-600">{fileType}</div>
@@ -792,7 +740,12 @@ const handleFileUpload = (event) => {
                   key={file.fileId}
                   className="bg-white border border-black p-2 flex items-center justify-between gap-2"
                 >
-                  <span className="text-sm font-semibold truncate">
+                  <span className="text-sm font-semibold truncate flex items-center gap-1">
+                    {file.sourceType === "youtube" ? (
+                      <Video className="h-3 w-3 flex-shrink-0" />
+                    ) : (
+                      <File className="h-3 w-3 flex-shrink-0" />
+                    )}
                     {file.filePath}
                   </span>
                   <button
@@ -808,6 +761,17 @@ const handleFileUpload = (event) => {
           </div>
         </div>
       </div>
+
+      {showModal && (
+        <DocAttachModal
+          onClose={() => setShowModal(false)}
+          activeSessionId={activeSessionId}
+          onSuccess={() => {
+            refreshFiles();
+            if (activeSessionId) loadSessionFiles(activeSessionId);
+          }}
+        />
+      )}
     </div>
   );
 }
