@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../database/postgres.db.js";
 import { chatSessionFiles, chatSessions, files, userData } from "../database/schema.js";
 import { getEmbeddings } from "../services/llm.service.js";
-import { addVector } from "../services/chromadb.service.js";
+import { addVector, deleteVector } from "../services/chromadb.service.js";
 import {
   extractVideoId,
   fetchTranscript,
@@ -14,10 +14,16 @@ import ApiError from "../utils/ApiError.js";
 
 export const attachYouTubeVideo = async (req, res) => {
   try {
-    const { url, sessionId } = req.body;
+    const { url } = req.body;
+    const sessionId = req.body.sessionId == null || req.body.sessionId === ""
+      ? null
+      : Number.parseInt(req.body.sessionId, 10);
 
     if (!url?.trim()) {
       return res.status(400).json({ success: false, message: "YouTube URL is required" });
+    }
+    if (sessionId !== null && (!Number.isInteger(sessionId) || sessionId <= 0)) {
+      return res.status(400).json({ success: false, message: "Invalid sessionId" });
     }
 
     const videoId = extractVideoId(url);
@@ -52,6 +58,30 @@ export const attachYouTubeVideo = async (req, res) => {
     const chunks = chunkTranscriptByTime(rawTranscript);
     const fullText = rawTranscript.map((s) => s.text).join(" ");
 
+    const existingFileResult = await db
+      .select()
+      .from(files)
+      .where(
+        and(
+          eq(files.userId, user.userId),
+          eq(files.filePath, videoId),
+          eq(files.sourceType, "youtube"),
+        ),
+      )
+      .limit(1);
+    const existingFile = existingFileResult[0];
+    if (existingFile) {
+      if (sessionId) {
+        await db.insert(chatSessionFiles).values({ sessionId, fileId: existingFile.fileId }).onConflictDoNothing();
+      }
+      return res.json({
+        success: true,
+        file: existingFile,
+        chunkCount: chunks.length,
+        message: "YouTube video is already attached",
+      });
+    }
+
     const [file] = await db
       .insert(files)
       .values({
@@ -62,25 +92,34 @@ export const attachYouTubeVideo = async (req, res) => {
       })
       .returning();
 
-    const addResults = await Promise.all(
-      chunks.map(async (chunk) => {
+    const addResults = [];
+    try {
+      for (const chunk of chunks) {
         const embedding = await getEmbeddings(chunk.text);
         const id = uuidv4();
-        await addVector({
+        const vectorResult = await addVector({
           id,
           embedding,
           userId: req.user.userId,
           fileId: file.fileId,
           text: chunk.text,
           metadata: {
+            sourceType: "youtube",
             startTime: chunk.startTime,
             endTime: chunk.endTime,
             videoUrl: `https://youtu.be/${videoId}?t=${Math.floor(chunk.startTime)}`,
           },
         });
-        return id;
-      }),
-    );
+        if (!vectorResult?.id) {
+          throw new Error("Failed to add transcript chunk vector");
+        }
+        addResults.push(vectorResult.id);
+      }
+    } catch (vectorError) {
+      await Promise.allSettled(addResults.map((vectorId) => deleteVector(vectorId)));
+      await db.delete(files).where(eq(files.fileId, file.fileId));
+      throw vectorError;
+    }
 
     if (sessionId) {
       await db.insert(chatSessionFiles).values({ sessionId, fileId: file.fileId }).onConflictDoNothing();
@@ -94,8 +133,29 @@ export const attachYouTubeVideo = async (req, res) => {
     });
   } catch (error) {
     console.error("Error attaching YouTube video:", error);
-    if (error.message?.includes("Transcript is disabled")) {
+    const lowerMessage = error.message?.toLowerCase?.() || "";
+    if (lowerMessage.includes("transcript is disabled")) {
       return res.status(400).json({ success: false, message: "Transcripts are disabled for this video" });
+    }
+    if (
+      lowerMessage.includes("could not find any transcripts")
+      || lowerMessage.includes("no transcript")
+    ) {
+      return res.status(400).json({ success: false, message: "No transcript available for this video" });
+    }
+    if (
+      lowerMessage.includes("video unavailable")
+      || lowerMessage.includes("video is unavailable")
+      || lowerMessage.includes("not available")
+    ) {
+      return res.status(404).json({ success: false, message: "The requested YouTube video is unavailable" });
+    }
+    if (
+      lowerMessage.includes("too many requests")
+      || lowerMessage.includes("rate limit")
+      || lowerMessage.includes("429")
+    ) {
+      return res.status(429).json({ success: false, message: "YouTube transcript service rate limit reached. Try again shortly." });
     }
     throw new ApiError(500, "Failed to attach YouTube video", [error.message]);
   }

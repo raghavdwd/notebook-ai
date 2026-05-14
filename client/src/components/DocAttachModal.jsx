@@ -1,15 +1,54 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { FileText, Video, X, Upload, Link } from "lucide-react";
 import { axiosInstance } from "../utils/axiosInstance";
 import { notify } from "../utils/notify";
+
+const YOUTUBE_VIDEO_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
+
+const extractYouTubeVideoId = (input) => {
+  const value = input.trim();
+  if (YOUTUBE_VIDEO_ID_REGEX.test(value)) return value;
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.replace(/^www\./, "");
+    if (hostname === "youtu.be") {
+      const id = url.pathname.slice(1).split("/")[0];
+      return YOUTUBE_VIDEO_ID_REGEX.test(id) ? id : null;
+    }
+    if (hostname === "youtube.com" || hostname === "m.youtube.com" || hostname === "music.youtube.com") {
+      let id = null;
+      if (url.pathname === "/watch") {
+        id = url.searchParams.get("v");
+      } else if (url.pathname.startsWith("/embed/") || url.pathname.startsWith("/shorts/") || url.pathname.startsWith("/v/")) {
+        id = url.pathname.split("/")[2];
+      }
+      return YOUTUBE_VIDEO_ID_REGEX.test(id || "") ? id : null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
 
 const DocAttachModal = ({ onClose, activeSessionId, onSuccess }) => {
   const [tab, setTab] = useState("pdf");
   const [ytUrl, setYtUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const trimmedYtUrl = ytUrl.trim();
+  const isValidYtUrl = useMemo(() => !!extractYouTubeVideoId(trimmedYtUrl), [trimmedYtUrl]);
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
 
   const handlePdfUpload = (e) => {
+    const input = e.target;
     const file = e.target.files[0];
+    input.value = "";
     if (!file) return;
     setIsSubmitting(true);
     const formData = new FormData();
@@ -26,18 +65,24 @@ const DocAttachModal = ({ onClose, activeSessionId, onSuccess }) => {
           notify("PDF uploaded successfully!", "success");
           onSuccess?.();
           onClose();
+          return;
         }
+        notify(res.data.message || "PDF upload failed!", "error");
       })
-      .catch(() => notify("PDF upload failed!", "error"))
+      .catch((err) => notify(err.response?.data?.message || err.message || "PDF upload failed!", "error"))
       .finally(() => setIsSubmitting(false));
   };
 
   const handleYtAttach = () => {
-    if (!ytUrl.trim()) return;
+    if (!trimmedYtUrl) return;
+    if (!isValidYtUrl) {
+      notify("Please enter a valid YouTube URL", "error");
+      return;
+    }
     setIsSubmitting(true);
     axiosInstance
       .post("/youtube/attach", {
-        url: ytUrl,
+        url: trimmedYtUrl,
         sessionId: activeSessionId,
       })
       .then((res) => {
@@ -45,7 +90,9 @@ const DocAttachModal = ({ onClose, activeSessionId, onSuccess }) => {
           notify("YouTube video attached successfully!", "success");
           onSuccess?.();
           onClose();
+          return;
         }
+        notify(res.data.message || "Failed to attach YouTube video", "error");
       })
       .catch((err) => {
         notify(err.response?.data?.message || "Failed to attach YouTube video", "error");
@@ -54,8 +101,8 @@ const DocAttachModal = ({ onClose, activeSessionId, onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white border-2 border-black w-full max-w-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white border-2 border-black w-full max-w-md" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-black">
           <h2 className="font-bold text-lg">Attach Document</h2>
           <button onClick={onClose} className="p-1 hover:bg-black hover:text-white transition-colors">
@@ -116,9 +163,12 @@ const DocAttachModal = ({ onClose, activeSessionId, onSuccess }) => {
                   disabled={isSubmitting}
                 />
               </div>
+              {trimmedYtUrl && !isValidYtUrl && (
+                <div className="mb-3 text-sm text-red-600">Enter a valid YouTube video URL or video ID.</div>
+              )}
               <button
                 onClick={handleYtAttach}
-                disabled={!ytUrl.trim() || isSubmitting}
+                disabled={!trimmedYtUrl || !isValidYtUrl || isSubmitting}
                 className="w-full p-3 bg-black text-white font-semibold hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
                 {isSubmitting ? (

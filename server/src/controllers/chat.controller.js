@@ -382,6 +382,16 @@ export const chatWithPdf = async (req, res) => {
     try {
       const embeddings = await getEmbeddings(userMsg);
       results = await searchVector(embeddings, req.user.userId, fileIds);
+
+      if (results?.metadatas?.[0]) {
+        const sourceTypeByFileId = new Map(
+          attachedFiles.map((file) => [file.fileId, file.sourceType]),
+        );
+        results.metadatas[0] = results.metadatas[0].map((metadata = {}) => ({
+          ...metadata,
+          sourceType: sourceTypeByFileId.get(Number(metadata.fileId)) || "pdf",
+        }));
+      }
       // console.log(`Vector search returned ${JSON.stringify(results)} results`);
     } catch (err) {
       console.error("Error in vector search:", err.message);
@@ -394,7 +404,11 @@ export const chatWithPdf = async (req, res) => {
 
     // 8. Determine source type for citation formatting
     const sourceTypes = [...new Set(attachedFiles.map((f) => f.sourceType))];
-    const sourceType = sourceTypes.length === 1 ? sourceTypes[0] : "mixed";
+    const sourceType = sourceTypes.length === 0
+      ? "pdf"
+      : sourceTypes.length === 1
+      ? sourceTypes[0]
+      : "mixed";
 
     // 9. Generate an AI response using the scoped document chunks and history
     try {

@@ -36,11 +36,11 @@ export const getTextResponse = async (userMsg, vectorData, history = [], sourceT
   const citationFormat = sourceType === "youtube"
     ? '**Cite sources** for every key fact using [View at MM:SS](video_url) format — these are clickable links that jump to the exact moment in the video'
     : sourceType === "mixed"
-    ? '**Cite sources** using [Page X] for PDF chunks or [View at MM:SS](video_url) for video chunks, based on the metadata in each chunk'
+    ? '**Cite sources** using each chunk metadata `sourceType`: use [Page X] when `sourceType` is "pdf", and [View at MM:SS](video_url) when `sourceType` is "youtube"'
     : '**Cite sources** for every key fact using [Page X] format';
 
   const formatInstructions = sourceType === "youtube"
-    ? `- **Answer**: [Direct response with inline video timestamp citations like [View at 3:45](https://youtu.be/ID?t=225)]
+    ? `- **Answer**: [Direct response with inline video timestamp citations like [View at 3:45](video_url_from_chunk_metadata)]
 - **Key Details**: [Bullet points of important extracted data]
 - **Sources**: [Timestamps referenced]`
     : sourceType === "mixed"

@@ -460,7 +460,7 @@ export default function Dashboard() {
               {files.map((file) => {
                 const attached = isFileAttached(file.fileId);
                 const isYoutube = file.sourceType === "youtube";
-                const fileName = isYoutube ? file.filePath : file.filePath || file.name;
+                const fileName = file.filePath || file.name;
                 const fileType = isYoutube ? "YT" : fileName.split(".").pop()?.toUpperCase() || "FILE";
 
                 return (
