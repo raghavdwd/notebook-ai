@@ -387,10 +387,18 @@ export const chatWithPdf = async (req, res) => {
         const sourceTypeByFileId = new Map(
           attachedFiles.map((file) => [file.fileId, file.sourceType]),
         );
-        results.metadatas[0] = results.metadatas[0].map((metadata = {}) => ({
-          ...metadata,
-          sourceType: sourceTypeByFileId.get(Number(metadata.fileId)) || "pdf",
-        }));
+        results.metadatas[0] = results.metadatas[0].map((metadata = {}) => {
+          const resolvedSourceType = sourceTypeByFileId.get(Number(metadata.fileId));
+          if (!resolvedSourceType) {
+            console.warn("Missing sourceType for vector search result metadata", {
+              fileId: metadata.fileId,
+            });
+          }
+          return {
+            ...metadata,
+            sourceType: resolvedSourceType || "pdf",
+          };
+        });
       }
       // console.log(`Vector search returned ${JSON.stringify(results)} results`);
     } catch (err) {

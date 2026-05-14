@@ -15,9 +15,10 @@ import ApiError from "../utils/ApiError.js";
 export const attachYouTubeVideo = async (req, res) => {
   try {
     const { url } = req.body;
-    const sessionId = req.body.sessionId == null || req.body.sessionId === ""
+    const rawSessionId = req.body.sessionId;
+    const sessionId = rawSessionId == null || rawSessionId === ""
       ? null
-      : Number.parseInt(req.body.sessionId, 10);
+      : Number(rawSessionId);
 
     if (!url?.trim()) {
       return res.status(400).json({ success: false, message: "YouTube URL is required" });
@@ -116,7 +117,17 @@ export const attachYouTubeVideo = async (req, res) => {
         addResults.push(vectorResult.id);
       }
     } catch (vectorError) {
-      await Promise.allSettled(addResults.map((vectorId) => deleteVector(vectorId)));
+      const cleanupResults = await Promise.allSettled(
+        addResults.map((vectorId) => deleteVector(vectorId)),
+      );
+      cleanupResults.forEach((result, index) => {
+        if (result.status === "rejected") {
+          console.error("Failed to delete vector during rollback:", {
+            vectorId: addResults[index],
+            error: result.reason?.message || String(result.reason),
+          });
+        }
+      });
       await db.delete(files).where(eq(files.fileId, file.fileId));
       throw vectorError;
     }

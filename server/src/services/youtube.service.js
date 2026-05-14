@@ -43,7 +43,7 @@ export async function fetchTranscript(videoId) {
 
 export function chunkTranscriptByTime(segments, chunkSeconds = 60) {
   const chunks = [];
-  let current = { text: "", startTime: null, endTime: 0 };
+  let current = { text: "", startTime: null, endTime: null };
 
   for (const seg of segments) {
     const start = seg.offset / 1000;
@@ -56,7 +56,7 @@ export function chunkTranscriptByTime(segments, chunkSeconds = 60) {
 
     if (end - current.startTime >= chunkSeconds) {
       chunks.push({ ...current, text: current.text.trim() });
-      current = { text: "", startTime: null, endTime: 0 };
+      current = { text: "", startTime: null, endTime: null };
     }
   }
 

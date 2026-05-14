@@ -50,6 +50,7 @@ const DocAttachModal = ({ onClose, activeSessionId, onSuccess }) => {
     const file = e.target.files[0];
     input.value = "";
     if (!file) return;
+    const fileName = file.name;
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append("pdfFile", file);
@@ -67,9 +68,9 @@ const DocAttachModal = ({ onClose, activeSessionId, onSuccess }) => {
           onClose();
           return;
         }
-        notify(res.data.message || "PDF upload failed!", "error");
+        notify(res.data.message || `PDF upload failed for ${fileName}!`, "error");
       })
-      .catch((err) => notify(err.response?.data?.message || err.message || "PDF upload failed!", "error"))
+      .catch((err) => notify(err.response?.data?.message || err.message || `PDF upload failed for ${fileName}!`, "error"))
       .finally(() => setIsSubmitting(false));
   };
 
