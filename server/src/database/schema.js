@@ -49,6 +49,8 @@ export const files = pgTable("files", {
     .notNull()
     .references(() => userData.userId, { onDelete: "cascade" }),
   filePath: text("file_path").notNull(),
+  sourceType: varchar("source_type", { length: 20 }).notNull().default("pdf"),
+  transcriptText: text("transcript_text"),
   uploadedAt: timestamp("uploaded_at").defaultNow(),
 });
 

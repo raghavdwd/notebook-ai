@@ -7,6 +7,7 @@ import authRoute from "./routes/auth.route.js";
 import uploadRoute from "./routes/upload.route.js";
 import chatRoute from "./routes/chat.route.js";
 import userRoute from "./routes/user.route.js";
+import youtubeRoute from "./routes/youtube.route.js";
 import cookieParser from "cookie-parser";
 import { verifyJwtToken } from "./middlewares/auth.middleware.js";
 import { CLIENT_APP_URL } from "../config/contants.js";
@@ -36,6 +37,7 @@ app.use("/api/v1/auth", authRoute);
 app.use("/api/v1/chat", verifyJwtToken, chatRoute);
 app.use("/api/v1/users", verifyJwtToken, userRoute);
 app.use("/api/v1/upload", verifyJwtToken, uploadRoute);
+app.use("/api/v1/youtube", verifyJwtToken, youtubeRoute);
 
 app.get("/api/v1/health", (req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
